@@ -1,0 +1,12 @@
+node_modules
+dist
+.partykit
+*.log
+.DS_Store
+.env
+.env.local
+.vite
+partykit.json.bak
+
+.vercel
+*.tsbuildinfo

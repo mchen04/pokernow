@@ -1,0 +1,15 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "feltline-poker",
+  "main": "party/server.ts",
+  "parties": {
+    "club": "party/club.ts"
+  },
+  "compatibilityDate": "2024-09-01",
+  "serve": {
+    "path": "dist",
+    "build": {
+      "command": "vite build"
+    }
+  }
+}

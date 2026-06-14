@@ -1,0 +1,208 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #201e1f;
+  color: #e7e9ee;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ── Mobile shell + safe areas (M1/M3) ──────────────────────────────────────
+   Full-height shell: 100vh fallback for old WebKit, then 100dvh where supported
+   so the pinned bottom dock tracks the Safari/Chrome toolbar instead of hiding
+   under it. */
+.h-screen-dyn {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* The persistent bottom dock is inset above the device safe area (home
+   indicator); the header clears the notch; controls stay off the screen edges. */
+.dock-safe-b {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.safe-t {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-x {
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+
+/* Constant dock body height (M1). The dock swaps between the betting controls
+   (~3 rows) and the seat/host control row. Letting it size to content made the
+   table area grow/shrink every time the turn entered or left the hero, and
+   useFitSize re-scaled the whole felt — a jarring jump. We pin ONE FIXED height
+   (a hard cap, not a floor) sized for the compacted betting bar; every state
+   centers within it, so all states are identical height and the table above
+   never re-fits. Stand-up / Leave-table moved OUT of the dock to the felt's
+   top-left cluster, so the non-turn branch is now at most sit-back-in **or**
+   Start game + Start tournament + Rabbit hunt + an info span — comfortably
+   inside this height. If a future dense state exceeds it, the control row's own
+   `overflow-y-auto` scrolls internally instead of growing the dock. */
+.dock-body {
+  height: 7.5rem; /* 120px — fits the compacted ActionBar (preset+slider+action ≈118px) */
+}
+
+/* Enlarged bet-slider thumb — native range thumbs are ~16px, far under the 44pt
+   touch target, so they mis-drag on a phone. Bump the thumb to ~30px and keep
+   the preset chips as the primary one-tap sizing path. */
+.dock-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  outline: none;
+}
+.dock-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #34d399;
+  border: 3px solid #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+.dock-range::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #34d399;
+  border: 3px solid #0f172a;
+  cursor: pointer;
+}
+.dock-range::-moz-range-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* M3 — legibility floor. The whole table scales as one transform unit, so on a
+   360px 9-max phone (scale ~0.56) a 13px seat label would render at ~7px. Counter
+   the table scale on just the seat name + chip count so they hold ~>=11px
+   *effective* (designPx * scale), while the board/cards/pot keep scaling as one
+   unit. --table-scale is published on the scaled design box. clamp() floors at the
+   desktop size and caps so pods never balloon at very small scales. */
+.seat-name {
+  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 21px);
+}
+.seat-stack {
+  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 21px);
+}
+
+/* Hide the scrollbar on the (horizontally scrollable) tournament banner pill so
+   it stays clean while still fitting any width without clipping. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Bottom-sheet slide-up (M2 "More" menu). */
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sheet-up {
+  animation: sheetUp 0.22s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ── Landing-page atmosphere (scoped utilities) ─────────────────────────── */
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translateY(-12px) rotate(var(--rot, 0deg));
+  }
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dealIn {
+  from {
+    opacity: 0;
+    transform: translateY(40px) rotate(0deg) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--rot, 0deg)) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: revealUp 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+.float-card {
+  animation: floatY 6s ease-in-out infinite;
+}
+
+.deal-card {
+  opacity: 0;
+  animation: dealIn 0.9s cubic-bezier(0.18, 0.8, 0.25, 1) forwards;
+}
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .deal-card,
+  .float-card {
+    animation: none;
+    opacity: 1;
+  }
+}
