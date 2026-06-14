@@ -15,8 +15,6 @@ export type ClientMessage =
   | { type: "rename"; name: string }
   | { type: "sit"; seat: number; buyIn: number }
   | { type: "stand" }
-  | { type: "sitOut" }
-  | { type: "sitIn" }
   | { type: "rebuy"; amount: number }
   | { type: "action"; action: PlayerActionType; amount?: number; seq: number }
   | { type: "startGame" }
@@ -30,6 +28,7 @@ export type ClientMessage =
   | { type: "setStack"; seat: number; stack: number }
   // in-hand interactions
   | { type: "rabbitHunt" }
+  | { type: "showCards" }
   | { type: "requestHistory" }
   // WebRTC voice/video (G11) — signaling relayed peer-to-peer; never touches game state
   | { type: "rtc"; to: string; data: unknown }
@@ -53,7 +52,6 @@ export interface PublicSeat {
   name: string;
   stack: number;
   sittingOut: boolean;
-  away: boolean;
   connected: boolean;
   inHand: boolean;
   folded: boolean;

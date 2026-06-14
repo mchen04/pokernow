@@ -70,7 +70,6 @@ interface SeatProps {
   actionTimeSec: number;
   onSit: (seatIndex: number) => void;
   stream?: MediaStream | null;
-  sessionNet?: number | null;
 }
 
 function SeatImpl({
@@ -81,7 +80,6 @@ function SeatImpl({
   actionTimeSec,
   onSit,
   stream,
-  sessionNet,
 }: SeatProps) {
   if (seat.empty) {
     return (
@@ -151,19 +149,7 @@ function SeatImpl({
             {fmtChips(seat.stack)}
           </span>
           {seat.allIn && <Badge className="bg-red-500 text-white">ALL IN</Badge>}
-          {/* session up/down from the running ledger — independent of this hand */}
-          {sessionNet != null && sessionNet !== 0 && !seat.allIn && (
-            <span
-              className={`shrink-0 text-[10px] font-bold tabular-nums ${
-                sessionNet > 0 ? "text-emerald-400" : "text-rose-400"
-              }`}
-              title="Session net (up/down)"
-            >
-              {fmtNet(sessionNet)}
-            </span>
-          )}
           {seat.sittingOut && !seat.inHand && <span className="text-[10px] text-white/40">out</span>}
-          {seat.away && <span className="text-[10px] text-amber-400">away</span>}
         </div>
       </div>
 
@@ -201,7 +187,7 @@ function SeatImpl({
         </div>
       ) : null}
 
-      {seat.revealed && seat.handLabel && (
+      {seat.revealed && seat.handLabel && !isHero && (
         <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[10px] text-white">
           {seat.handLabel}
         </div>
@@ -243,8 +229,7 @@ function seatPropsEqual(a: SeatProps, b: SeatProps): boolean {
     a.actionDeadline === b.actionDeadline &&
     a.actionTimeSec === b.actionTimeSec &&
     a.onSit === b.onSit &&
-    a.stream === b.stream &&
-    a.sessionNet === b.sessionNet
+    a.stream === b.stream
   );
 }
 

@@ -53,11 +53,11 @@ export interface Seat {
   name: string;
   stack: number;
   sittingOut: boolean;
-  away: boolean; // disconnected/timed-out; auto-folds but keeps the seat
   connected: boolean;
   // ── per-hand state ──
   inHand: boolean;
   holeCards: Card[];
+  lastHole: Card[] | null; // cards from the just-finished hand, retained through showdown/between so a player can voluntarily show; cleared on the next deal
   folded: boolean;
   allIn: boolean;
   betThisStreet: number;
@@ -491,11 +491,7 @@ export class PokerEngine {
 
   setConnected(playerId: string, connected: boolean) {
     const s = this.seatOf(playerId);
-    if (s) {
-      s.connected = connected;
-      if (!connected && s.inHand && !s.folded && this.phase === "hand") s.away = true;
-      if (connected) s.away = false;
-    }
+    if (s) s.connected = connected;
   }
 
   isHost(playerId: string): boolean {
@@ -542,10 +538,10 @@ export class PokerEngine {
       name: name.slice(0, 20) || "Player",
       stack,
       sittingOut: false,
-      away: false,
       connected: true,
       inHand: false,
       holeCards: [],
+      lastHole: null,
       folded: false,
       allIn: false,
       betThisStreet: 0,
@@ -640,19 +636,6 @@ export class PokerEngine {
     if (s) s.name = name.slice(0, 20) || "Player";
   }
 
-  sitOut(playerId: string) {
-    const s = this.seatOf(playerId);
-    if (s) s.sittingOut = true;
-  }
-
-  sitIn(playerId: string) {
-    const s = this.seatOf(playerId);
-    if (s) {
-      s.sittingOut = false;
-      s.away = false;
-    }
-  }
-
   rebuy(playerId: string, amount: number): string | null {
     const s = this.seatOf(playerId);
     if (!s) return "Not seated";
@@ -665,11 +648,8 @@ export class PokerEngine {
     const delta = s.stack - before;
     this.addBuyIn(s.playerId, s.name, delta);
     // A player who had busted (stack 0 → sat out) is back in the action the
-    // moment they re-buy; a voluntary sit-out who tops up keeps their state.
-    if (before <= 0) {
-      s.sittingOut = false;
-      s.away = false;
-    }
+    // moment they re-buy.
+    if (before <= 0) s.sittingOut = false;
     this.addLog(`${s.name} added ${delta} in chips`);
     return null;
   }
@@ -967,6 +947,7 @@ export class PokerEngine {
   // sets from dealtIn).
   private resetSeatForHand(s: Seat) {
     s.holeCards = [];
+    s.lastHole = null;
     s.folded = false;
     s.allIn = false;
     s.betThisStreet = 0;
@@ -1573,14 +1554,23 @@ export class PokerEngine {
     return merged;
   }
 
+  // The seat's hole cards for evaluation — falls back to lastHole so showdown
+  // hand-labels still resolve during the between phase, after the live cards
+  // have been cleared.
+  private holeOf(seat: Seat): Card[] {
+    return seat.holeCards.length ? seat.holeCards : seat.lastHole ?? [];
+  }
+
   private bestHigh(seat: Seat, board: Card[]): HandScore {
-    if (isOmaha(this.config.variant)) return evaluateOmaha(seat.holeCards, board);
-    return evaluateBest([...seat.holeCards, ...board]);
+    const hole = this.holeOf(seat);
+    if (isOmaha(this.config.variant)) return evaluateOmaha(hole, board);
+    return evaluateBest([...hole, ...board]);
   }
 
   private bestLow(seat: Seat, board: Card[]): number[] | null {
-    if (isOmaha(this.config.variant)) return evaluateOmahaLow(seat.holeCards, board);
-    return evaluateLow5([...seat.holeCards, ...board]);
+    const hole = this.holeOf(seat);
+    if (isOmaha(this.config.variant)) return evaluateOmahaLow(hole, board);
+    return evaluateLow5([...hole, ...board]);
   }
 
   // Split `amount` into `parts` integer shares, distributing the remainder to
@@ -1781,6 +1771,10 @@ export class PokerEngine {
     // remove busted players' chips state; they stay seated but sitting out at 0
     for (const s of this.occupied()) {
       s.inHand = false;
+      // Retain this hand's hole cards so a player can voluntarily show them
+      // during the showdown/between window (cleared on the next deal). Already
+      // revealed (showdown) hands keep showing; others stay hidden until shown.
+      if (s.holeCards.length) s.lastHole = s.holeCards.slice();
       s.holeCards = [];
       s.betThisStreet = 0;
       // The hand is over: nobody is "all in" any more. Clearing it here (rather
@@ -1809,17 +1803,17 @@ export class PokerEngine {
       this.addLog(`${s.name} is into the time bank`);
       return true;
     }
+    // Auto-act so the table never stalls, but keep the player in their seat and
+    // in the next hand — no "away"/sit-out. Check when it's free, otherwise fold.
     const toCall = this.currentBet - s.betThisStreet;
-    s.away = true;
     if (toCall <= 0) {
-      this.addLog(`${s.name} is away — checks`);
+      this.addLog(`${s.name} checks (timed out)`);
       s.hasActed = true;
       s.lastAction = "Check (timeout)";
     } else {
       this.applyFold(s, false);
       s.lastAction = "Fold (timeout)";
     }
-    s.sittingOut = true;
     this.advanceAction();
     return true;
   }
@@ -1845,6 +1839,22 @@ export class PokerEngine {
     }
     this.rabbitCards = run.slice(this.boards[0].length);
     this.addLog(`Rabbit hunt: ${this.rabbitCards.map(cardCode).join(" ")}`);
+    return null;
+  }
+
+  // Voluntarily reveal one's own cards after a hand. Available during the
+  // showdown/between window to anyone who was dealt in this hand — including a
+  // player who folded (so they can show a bluff). Idempotent once shown.
+  showCards(playerId: string): string | null {
+    if (this.phase !== "showdown" && this.phase !== "between") return "No hand to show";
+    const s = this.seatOf(playerId);
+    if (!s) return "Not seated";
+    if (s.revealed) return null; // already showing
+    const cards = s.holeCards.length ? s.holeCards : s.lastHole;
+    if (!cards || cards.length === 0) return "No cards to show";
+    s.revealed = true;
+    this.addLog(`${s.name} shows ${cards.map(cardCode).join(" ")}`);
+    this.bumpSeq();
     return null;
   }
 
@@ -1905,6 +1915,9 @@ export class PokerEngine {
       const spectatorPeek =
         isSpectator && this.config.spectatorsSeeCards && s.inHand && !s.folded;
       const showCards = isSelf || s.revealed || spectatorPeek;
+      // Between hands the live holeCards are cleared, but lastHole still holds
+      // the just-played cards so a shown hand (or your own) stays visible.
+      const cards = s.holeCards.length > 0 ? s.holeCards : s.lastHole ?? [];
       seats.push({
         index: i,
         empty: false,
@@ -1912,15 +1925,14 @@ export class PokerEngine {
         name: s.name,
         stack: s.stack,
         sittingOut: s.sittingOut,
-        away: s.away,
         connected: s.connected,
         inHand: s.inHand,
         folded: s.folded,
         allIn: s.allIn,
         betThisStreet: s.betThisStreet,
         hasCards: s.inHand && s.holeCards.length > 0 && !s.folded,
-        holeCards: showCards && s.holeCards.length > 0 ? s.holeCards : null,
-        cardCount: s.holeCards.length,
+        holeCards: showCards && cards.length > 0 ? cards : null,
+        cardCount: cards.length,
         isButton: i === this.buttonSeat && this.phase !== "lobby",
         isSmallBlind: i === this.sbSeat && this.phase === "hand",
         isBigBlind: i === this.bbSeat && this.phase === "hand",
@@ -2030,7 +2042,6 @@ function emptySeat(i: number): PublicSeat {
     name: "",
     stack: 0,
     sittingOut: false,
-    away: false,
     connected: false,
     inHand: false,
     folded: false,

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClientMessage, PublicTableState } from "@common/protocol";
 
 export function SidePanel({ state, send }: { state: PublicTableState; send: (m: ClientMessage) => void }) {
-  const [tab, setTab] = useState<"log" | "chat">("log");
+  const [tab, setTab] = useState<"chat" | "log">("chat");
   const [draft, setDraft] = useState("");
   // The active scroll container (log OR chat — only one is mounted at a time).
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,7 +41,7 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
   return (
     <div className="flex h-full flex-col rounded-xl bg-slate-900/80 ring-1 ring-white/10">
       <div className="flex border-b border-white/10">
-        {(["log", "chat"] as const).map((t) => (
+        {(["chat", "log"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}

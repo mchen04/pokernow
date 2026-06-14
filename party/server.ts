@@ -171,12 +171,6 @@ export default class PokerServer implements Party.Server {
       case "stand":
         if (pid()) e.stand(pid()!);
         break;
-      case "sitOut":
-        if (pid()) e.sitOut(pid()!);
-        break;
-      case "sitIn":
-        if (pid()) e.sitIn(pid()!);
-        break;
       case "rebuy":
         if (pid()) err = e.rebuy(pid()!, asInt(msg.amount, 0));
         break;
@@ -195,6 +189,13 @@ export default class PokerServer implements Party.Server {
         if (pid() && e.isHost(pid()!)) {
           this.running = true;
           e.paused = false;
+          // Cancel any pending auto-deal so this is the single deal entry point —
+          // otherwise an armed next-hand timer could fire and deal a second hand
+          // on top of this one (the double-deal bug).
+          if (this.handTimer) {
+            clearTimeout(this.handTimer);
+            this.handTimer = null;
+          }
           if (e.canStart() && !e.handInProgress()) {
             err = e.startHand();
             this.afterStateChange();
@@ -278,6 +279,9 @@ export default class PokerServer implements Party.Server {
         break;
       case "rabbitHunt":
         if (pid()) err = e.requestRabbit(pid()!);
+        break;
+      case "showCards":
+        if (pid()) err = e.showCards(pid()!);
         break;
       case "requestHistory":
         this.sendTo(conn, { type: "history", histories: e.getHistories() });

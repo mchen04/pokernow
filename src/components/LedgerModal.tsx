@@ -192,7 +192,7 @@ function StatsTab({ stats }: { stats: PlayerStats[] }) {
         label: "Net",
         title: "Session net (from the ledger)",
         cell: (s) => fmtNet(s.net),
-        cls: (s) => (s.net > 0 ? "text-emerald-400" : s.net < 0 ? "text-rose-400" : "text-white/60"),
+        cls: (s) => (num(s.net) && s.net > 0 ? "text-emerald-400" : num(s.net) && s.net < 0 ? "text-rose-400" : "text-white/60"),
       },
       {
         key: "bb100",
@@ -208,7 +208,7 @@ function StatsTab({ stats }: { stats: PlayerStats[] }) {
         label: "Luck",
         title: "All-in luck: actual − expected (EV) across all-in showdowns",
         cell: (s) => (s.allInCount === 0 ? "—" : fmtNet(s.allInLuck)),
-        cls: (s) => (s.allInCount === 0 ? "text-white/40" : s.allInLuck > 0 ? "text-emerald-400" : s.allInLuck < 0 ? "text-rose-400" : "text-white/60"),
+        cls: (s) => (s.allInCount === 0 ? "text-white/40" : num(s.allInLuck) && s.allInLuck > 0 ? "text-emerald-400" : num(s.allInLuck) && s.allInLuck < 0 ? "text-rose-400" : "text-white/60"),
       },
     ],
   };

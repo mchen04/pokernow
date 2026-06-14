@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import type { PublicTableState } from "@common/protocol";
 import { fmtChips } from "@common/money";
 import { PlayingCard } from "./PlayingCard";
@@ -40,13 +39,6 @@ export function PokerTable({
   const betsOnTable = state.seats.reduce((s, x) => s + x.betThisStreet, 0);
   const centerPot = state.totalPot - betsOnTable;
   const { ref, fit } = useFitSize();
-
-  // Session up/down per player, from the authoritative running ledger.
-  const netByPlayer = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const l of state.ledger) m[l.playerId] = l.net;
-    return m;
-  }, [state.ledger]);
 
   // Clamp a video seat's center inward so the wider [video | pod | cards] block
   // stays within the felt (which clips at its overflow-hidden edge).
@@ -128,7 +120,6 @@ export function PokerTable({
                 actionTimeSec={state.config.actionTimeSec}
                 onSit={onSit}
                 stream={stream}
-                sessionNet={seat.playerId ? netByPlayer[seat.playerId] ?? null : null}
               />
             </div>
             {seat.betThisStreet > 0 && (

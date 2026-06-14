@@ -23,7 +23,7 @@ export {
   Download,
   LogOut, // stand up (vacate seat, keep watching)
   DoorOpen, // leave table (exit to home)
-  LogIn, // sit back in (return from away/sat-out)
+  Eye, // show cards (voluntary reveal after a hand)
   UserX, // kick (host moderation)
   Timer, // action clock / add time
   CircleDollarSign, // chips / rebuy

@@ -1,6 +1,6 @@
 import type { ClientMessage, PublicSeat, PublicTableState } from "@common/protocol";
 import { ActionBar } from "./ActionBar";
-import { CircleDollarSign, LogIn, Play, Rabbit, Trophy } from "./Icon";
+import { CircleDollarSign, Eye, Play, Rabbit, Trophy } from "./Icon";
 
 // One persistent bottom dock — the only layer holding turn controls (M1). It is a
 // normal flex child pinned at the bottom of the 100dvh shell (not a floating band
@@ -33,12 +33,13 @@ export function BottomDock({
   onRebuy: () => void;
 }) {
   const inTourney = !!state.tourney?.active;
-  // Busted in a cash game: stack is gone, so re-buying (not just sitting in) is
-  // what brings the player back. Tournaments have no rebuys.
-  const busted = !!me && me.stack <= 0 && !inTourney;
-  // Seated but out of the action with chips still behind: away or sitting out.
-  const benched = !!me && (me.away || me.sittingOut) && !busted;
+  // Busted in a cash game: stack is gone AND the hand is over (not mid all-in),
+  // so re-buying is what brings the player back. Tournaments have no rebuys.
+  const busted = !!me && me.stack <= 0 && !me.allIn && !inTourney;
   const canStart = isHost && state.canStart && !state.handInProgress;
+  // After a hand, anyone who was dealt in (incl. a folder) can voluntarily show.
+  const canShow =
+    !!me && !me.revealed && !!me.holeCards && (state.phase === "showdown" || state.phase === "between");
 
   return (
     <div className="dock-safe-b safe-x relative z-30 shrink-0 border-t border-white/10 bg-slate-900/95 px-3 pt-2 backdrop-blur">
@@ -65,12 +66,6 @@ export function BottomDock({
               <p className="text-center text-xs text-amber-300/90">
                 You&apos;re out of chips — re-buy to get back in the game.
               </p>
-            ) : benched ? (
-              <p className="text-center text-xs text-amber-300/90">
-                {me?.away
-                  ? "You were sat out for missing a turn — your seat and chips are held."
-                  : "You're sitting out — your seat and chips are held."}
-              </p>
             ) : null}
 
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -80,24 +75,27 @@ export function BottomDock({
                 </button>
               )}
 
-              {benched && (
+              {canShow && (
                 <button
-                  onClick={() => send({ type: "sitIn" })}
-                  className={`${PRIMARY} bg-emerald-600 hover:bg-emerald-500`}
+                  onClick={() => send({ type: "showCards" })}
+                  className={`${PRIMARY} bg-sky-600 hover:bg-sky-500`}
                 >
-                  <LogIn size={18} /> I&apos;m back — sit back in
+                  <Eye size={18} /> Show cards
                 </button>
               )}
 
-              {canStart && (
+              {/* Only the very first deal is manual; subsequent hands deal
+                  automatically, so there's no "resume dealing" button to race
+                  the auto-deal timer (which caused double-deals). */}
+              {canStart && state.handNumber === 0 && (
                 <button
                   onClick={() => send({ type: "startGame" })}
                   className={`${PRIMARY} bg-emerald-600 hover:bg-emerald-500`}
                 >
-                  <Play size={18} /> {state.handNumber > 0 ? "Resume dealing" : "Start game"}
+                  <Play size={18} /> Start game
                 </button>
               )}
-              {canStart && !state.tourney && (
+              {canStart && !state.tourney && state.handNumber === 0 && (
                 <button
                   onClick={() => send({ type: "startTournament" })}
                   className={`${PRIMARY} bg-amber-500 text-slate-900 hover:bg-amber-400`}
@@ -120,7 +118,7 @@ export function BottomDock({
                   Click an open seat to sit down.
                 </span>
               )}
-              {isHost && !state.canStart && !state.handInProgress && me && !benched && !busted && (
+              {isHost && !state.canStart && !state.handInProgress && me && !busted && (
                 <span className="rounded-md bg-black/40 px-3 py-2 text-sm text-white/60">
                   Need 2+ players to start.
                 </span>

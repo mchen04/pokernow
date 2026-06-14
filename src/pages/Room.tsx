@@ -237,6 +237,15 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
               <span className="hidden sm:inline">{connected ? "live" : "reconnecting"}</span>
             </span>
 
+            {/* chat/log — slide-in drawer toggled from the top, on every viewport */}
+            <IconBtn
+              onClick={() => setShowPanel((p) => !p)}
+              label="Chat & log"
+              active={showPanel}
+            >
+              <MessageSquare size={18} />
+            </IconBtn>
+
             {/* desktop inline controls */}
             <div className="hidden items-center gap-0.5 lg:flex">
               <IconBtn onClick={toggleMute} label={muted ? "Unmute" : "Mute"} active={!muted}>
@@ -394,16 +403,9 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
         )}
       </div>
 
-      {/* side panel — docked on large screens */}
-      <aside className="hidden w-80 shrink-0 border-l border-white/10 lg:block">
-        <div className="h-full p-2">
-          <SidePanel state={state} send={send} />
-        </div>
-      </aside>
-
-      {/* side panel — drawer on small screens (opened from the More sheet) */}
+      {/* chat/log — slide-in drawer on every viewport, toggled from the header */}
       {showPanel && (
-        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setShowPanel(false)}>
+        <div className="fixed inset-0 z-50" onClick={() => setShowPanel(false)}>
           <div className="absolute inset-0 bg-black/50" />
           <div
             className="safe-t absolute inset-y-0 right-0 w-80 max-w-[85vw] bg-[#201e1f] p-2 shadow-2xl"
