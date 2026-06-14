@@ -117,15 +117,35 @@ export function useWebRTC(
     }
   }, [peers, micOn, camOn, playerId, callPeer]);
 
-  const enable = useCallback(
-    async (video: boolean) => {
+  // Apply a desired mic/cam state. Mic and camera are fully independent — you
+  // can run either alone, both, or neither. When the local track set changes we
+  // rebuild the peer connections so every peer renegotiates against the new
+  // tracks (the reconcile effect re-offers once the media broadcast updates).
+  const apply = useCallback(
+    async (wantMic: boolean, wantCam: boolean) => {
+      if (!wantMic && !wantCam) {
+        localRef.current?.getTracks().forEach((t) => t.stop());
+        localRef.current = null;
+        pcs.current.forEach((pc) => pc.close());
+        pcs.current.clear();
+        setRemote({});
+        setMicOn(false);
+        setCamOn(false);
+        send({ type: "media", mic: false, cam: false });
+        return true;
+      }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: wantMic, video: wantCam });
+        localRef.current?.getTracks().forEach((t) => t.stop());
         localRef.current = stream;
-        setMicOn(true);
-        setCamOn(video);
+        // Tear down existing connections; they re-establish with the new tracks.
+        pcs.current.forEach((pc) => pc.close());
+        pcs.current.clear();
+        setRemote({});
+        setMicOn(wantMic);
+        setCamOn(wantCam);
         setError(null);
-        send({ type: "media", mic: true, cam: video });
+        send({ type: "media", mic: wantMic, cam: wantCam });
       } catch {
         setError("Mic/camera permission denied — playing on without it.");
         return false;
@@ -135,16 +155,8 @@ export function useWebRTC(
     [send]
   );
 
-  const disable = useCallback(() => {
-    localRef.current?.getTracks().forEach((t) => t.stop());
-    localRef.current = null;
-    pcs.current.forEach((pc) => pc.close());
-    pcs.current.clear();
-    setRemote({});
-    setMicOn(false);
-    setCamOn(false);
-    send({ type: "media", mic: false, cam: false });
-  }, [send]);
+  const toggleMic = useCallback(() => apply(!micOn, camOn), [apply, micOn, camOn]);
+  const toggleCam = useCallback(() => apply(micOn, !camOn), [apply, micOn, camOn]);
 
-  return { micOn, camOn, error, remote, localStream: localRef.current, enable, disable };
+  return { micOn, camOn, error, remote, localStream: localRef.current, toggleMic, toggleCam };
 }

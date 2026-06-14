@@ -169,7 +169,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       icon: rtc.micOn ? <Mic size={20} /> : <MicOff size={20} />,
       label: rtc.micOn ? "Leave voice" : "Join voice",
       sub: "Talk with the table",
-      onClick: () => (rtc.micOn ? rtc.disable() : rtc.enable(false)),
+      onClick: () => rtc.toggleMic(),
       active: rtc.micOn,
       keepOpen: true,
     },
@@ -177,7 +177,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       icon: rtc.camOn ? <Video size={20} /> : <VideoOff size={20} />,
       label: rtc.camOn ? "Stop video" : "Start video",
       sub: "Share your camera",
-      onClick: () => (rtc.camOn ? rtc.disable() : rtc.enable(true)),
+      onClick: () => rtc.toggleCam(),
       active: rtc.camOn,
       keepOpen: true,
     },
@@ -250,14 +250,14 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
                 <Palette size={18} />
               </IconBtn>
               <IconBtn
-                onClick={() => (rtc.micOn ? rtc.disable() : rtc.enable(false))}
+                onClick={() => rtc.toggleMic()}
                 label={rtc.micOn ? "Leave voice" : "Join voice chat"}
                 active={rtc.micOn}
               >
                 {rtc.micOn ? <Mic size={18} /> : <MicOff size={18} />}
               </IconBtn>
               <IconBtn
-                onClick={() => (rtc.camOn ? rtc.disable() : rtc.enable(true))}
+                onClick={() => rtc.toggleCam()}
                 label={rtc.camOn ? "Stop video" : "Start video"}
                 active={rtc.camOn}
               >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClientMessage, HandSummary, LedgerEntry, LogEntry, PlayerStats } from "@common/protocol";
 import { fmtMoney, fmtNet } from "@common/money";
 import { computeEquity, mulberry32 } from "@common/equity";
@@ -21,6 +21,13 @@ function ReplayView({ hand, onBack }: { hand: HandSummary; onBack: () => void })
   const [step, setStep] = useState(1);
   const [playing, setPlaying] = useState(false);
   const total = hand.actions.length;
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // Keep the latest action in view as the replay advances (on play, prev, next).
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [step]);
 
   useEffect(() => {
     if (!playing) return;
@@ -111,7 +118,7 @@ function ReplayView({ hand, onBack }: { hand: HandSummary; onBack: () => void })
       )}
 
       {/* action log up to step */}
-      <div className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-2 text-[12px] text-white/75">
+      <div ref={logRef} className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-2 text-[12px] text-white/75">
         {hand.actions.slice(0, step).map((a, i) => (
           <div key={i} className={i === step - 1 ? "font-semibold text-emerald-300" : ""}>
             {a}
@@ -150,7 +157,11 @@ function ReplayView({ hand, onBack }: { hand: HandSummary; onBack: () => void })
 // ── Stats tab ────────────────────────────────────────────────────────────────
 type StatView = "preflop" | "postflop" | "results";
 
-const pctCell = (v: number) => `${v}%`;
+// Guard every numeric stat: a missing/NaN value renders as a neutral dash
+// rather than leaking the literal "undefined"/"NaN" into the table.
+const num = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
+const pctCell = (v: number | null | undefined) => (num(v) ? `${v}%` : "—");
+const afCell = (v: number | null | undefined) => (num(v) ? v.toFixed(1) : "—");
 
 function StatsTab({ stats }: { stats: PlayerStats[] }) {
   const [view, setView] = useState<StatView>("preflop");
@@ -168,7 +179,7 @@ function StatsTab({ stats }: { stats: PlayerStats[] }) {
       { key: "f3b", label: "Fold→3B", title: "Folded the open when facing a 3-bet", cell: (s) => pctCell(s.foldTo3bet) },
     ],
     postflop: [
-      { key: "af", label: "AF", title: "Aggression factor (bets+raises)/calls", cell: (s) => s.af.toFixed(1) },
+      { key: "af", label: "AF", title: "Aggression factor (bets+raises)/calls", cell: (s) => afCell(s.af) },
       { key: "agg", label: "Agg%", title: "Aggression frequency", cell: (s) => pctCell(s.aggPct) },
       { key: "wtsd", label: "WTSD", title: "Went to showdown (given saw flop)", cell: (s) => pctCell(s.wtsd) },
       { key: "wsd", label: "W$SD", title: "Won money at showdown", cell: (s) => pctCell(s.wsd) },
@@ -190,7 +201,7 @@ function StatsTab({ stats }: { stats: PlayerStats[] }) {
         cell: (s) => (s.bb100 == null ? "—" : (s.bb100 > 0 ? "+" : "") + s.bb100),
         cls: (s) => (s.bb100 == null ? "text-white/40" : s.bb100 > 0 ? "text-emerald-400" : s.bb100 < 0 ? "text-rose-400" : "text-white/60"),
       },
-      { key: "won", label: "Won", title: "Hands won (win rate)", cell: (s) => `${s.handsWon} (${s.winRate}%)` },
+      { key: "won", label: "Won", title: "Hands won (win rate)", cell: (s) => `${num(s.handsWon) ? s.handsWon : 0} (${num(s.winRate) ? s.winRate : 0}%)` },
       { key: "big", label: "Big pot", title: "Biggest pot won", cell: (s) => fmtMoney(s.biggestPotWon) },
       {
         key: "luck",
