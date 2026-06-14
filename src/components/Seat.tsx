@@ -186,12 +186,6 @@ function SeatImpl({
           {seat.lastAction}
         </div>
       ) : null}
-
-      {seat.revealed && seat.handLabel && !isHero && (
-        <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[10px] text-white">
-          {seat.handLabel}
-        </div>
-      )}
     </div>
   );
 
