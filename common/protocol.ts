@@ -211,6 +211,7 @@ export interface PublicTableState {
   actionDeadline: number | null;
   legalActions: LegalAction[];
   callAmount: number;
+  callPotOddsPct: number | null; // caller's price vs. final pot they can win
   minRaiseTo: number;
   maxRaiseTo: number;
   potForBet: number; // pot size used for pot-limit max calc

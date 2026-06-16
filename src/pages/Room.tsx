@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRoom } from "../lib/useRoom";
 import { useNow } from "../lib/useNow";
@@ -9,11 +9,13 @@ import { getPlayerName } from "../lib/identity";
 import { NameGate } from "../components/NameGate";
 import { PokerTable } from "../components/PokerTable";
 import { BottomDock } from "../components/BottomDock";
+import { ActionBar } from "../components/ActionBar";
 import { SidePanel } from "../components/SidePanel";
 import { BuyInModal } from "../components/BuyInModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { LedgerModal } from "../components/LedgerModal";
 import { MoreSheet, type SheetItem } from "../components/MoreSheet";
+import { HelpModal } from "../components/HelpModal";
 import { TourneyBanner, TourneyResults } from "../components/TourneyBanner";
 import { useWebRTC } from "../lib/useWebRTC";
 import { VoiceVideo } from "../components/VoiceVideo";
@@ -21,6 +23,7 @@ import {
   Check,
   Copy,
   DoorOpen,
+  HelpCircle,
   LogOut,
   Mic,
   MicOff,
@@ -33,7 +36,35 @@ import {
   VideoOff,
   Volume2,
   VolumeX,
+  X,
+  BarChart3,
 } from "../components/Icon";
+
+type CoveringOverlay =
+  | { type: "sit"; seat: number }
+  | { type: "rebuy" }
+  | { type: "settings" }
+  | { type: "ledger" }
+  | { type: "help" }
+  | { type: "more" }
+  | { type: "chat" };
+
+function overlayPolicy(overlay: CoveringOverlay | null, widePanel: boolean) {
+  if (!overlay) return { coversDock: false, autoCloseOnTurn: false, showFloatingActions: false };
+  if (overlay.type === "chat") {
+    return {
+      coversDock: !widePanel,
+      autoCloseOnTurn: !widePanel,
+      showFloatingActions: !widePanel,
+    };
+  }
+  const autoCloseOnTurn = overlay.type === "more";
+  return {
+    coversDock: true,
+    autoCloseOnTurn,
+    showFloatingActions: !autoCloseOnTurn,
+  };
+}
 
 export default function Room() {
   const { roomId = "" } = useParams();
@@ -71,13 +102,33 @@ function IconBtn({
       title={label}
       aria-label={label}
       aria-pressed={active}
-      className={`rounded-md p-2 hover:bg-white/10 ${
+      className={`touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-md p-2 hover:bg-white/10 ${
         active ? "text-emerald-400" : "text-white/60 hover:text-white"
       }`}
     >
       {children}
     </button>
   );
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const onChange = () => setMatches(window.matchMedia(query).matches);
+    onChange();
+    media.addEventListener("change", onChange);
+    window.addEventListener("resize", onChange);
+    const interval = window.setInterval(onChange, 250);
+    return () => {
+      media.removeEventListener("change", onChange);
+      window.removeEventListener("resize", onChange);
+      window.clearInterval(interval);
+    };
+  }, [query]);
+  return matches;
 }
 
 function RoomInner({ roomId, name }: { roomId: string; name: string }) {
@@ -87,17 +138,36 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   const now = useNow(active);
   const [resultsDismissed, setResultsDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [sitSeat, setSitSeat] = useState<number | null>(null);
-  const [showRebuy, setShowRebuy] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showLedger, setShowLedger] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [openOverlay, setOpenOverlay] = useState<CoveringOverlay | null>(null);
   const [muted, setMutedState] = useState(isMuted());
-  const [showPanel, setShowPanel] = useState(false);
-  const [showMore, setShowMore] = useState(false);
-  const { fourColor, setFourColor } = usePrefs();
+  const [seenChat, setSeenChat] = useState(0);
+  const widePanel = useMediaQuery("(min-width: 1280px)");
+  const { fourColor, setFourColor, hud, setHud } = usePrefs();
   useSound(state);
 
-  const onSit = useCallback((i: number) => setSitSeat(i), []);
+  const policy = overlayPolicy(openOverlay, widePanel);
+  const heroTurn = !!state && state.yourSeat !== null && state.toActSeat === state.yourSeat;
+  useEffect(() => {
+    if (heroTurn && policy.autoCloseOnTurn) setOpenOverlay(null);
+  }, [heroTurn, policy.autoCloseOnTurn]);
+
+  const chatOpen = openOverlay?.type === "chat";
+  const chatCount = state?.chat.length ?? 0;
+  useEffect(() => {
+    if (chatOpen) setSeenChat(chatCount);
+  }, [chatOpen, chatCount]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (openOverlay) setOpenOverlay(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openOverlay]);
+
+  const onSit = useCallback((i: number) => setOpenOverlay({ type: "sit", seat: i }), []);
 
   // WebRTC voice/video peers = other seated players with mic/cam active. Keep a
   // stable array reference unless the peer set or their media actually changes,
@@ -134,6 +204,12 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const copyCode = () => {
+    navigator.clipboard?.writeText(roomId.toUpperCase());
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 1500);
+  };
+
   const toggleMute = () => {
     const m = !muted;
     setMuted(m);
@@ -150,6 +226,12 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   // Controls banked off the top bar into the mobile "More" sheet (M2).
   const moreItems: SheetItem[] = [
     {
+      icon: <HelpCircle size={20} />,
+      label: "How to play",
+      sub: "Hand rankings & table terms",
+      onClick: () => setOpenOverlay({ type: "help" }),
+    },
+    {
       icon: muted ? <VolumeX size={20} /> : <Volume2 size={20} />,
       label: muted ? "Sound off" : "Sound on",
       sub: "Table sound effects",
@@ -163,6 +245,14 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       sub: "Card suit colors",
       onClick: () => setFourColor(!fourColor),
       active: fourColor,
+      keepOpen: true,
+    },
+    {
+      icon: <BarChart3 size={20} />,
+      label: hud ? "Stats HUD on" : "Stats HUD off",
+      sub: "VPIP/PFR beside seats",
+      onClick: () => setHud(!hud),
+      active: hud,
       keepOpen: true,
     },
     {
@@ -185,13 +275,13 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       icon: <ScrollText size={20} />,
       label: "Ledger & history",
       sub: "Chips, stats, hand replays",
-      onClick: () => setShowLedger(true),
+      onClick: () => setOpenOverlay({ type: "ledger" }),
     },
     {
       icon: <MessageSquare size={20} />,
       label: "Log & chat",
       sub: "Hand log and table chat",
-      onClick: () => setShowPanel(true),
+      onClick: () => setOpenOverlay({ type: "chat" }),
     },
     ...(isHost
       ? [
@@ -199,7 +289,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
             icon: <Settings size={20} />,
             label: "Table settings",
             sub: "Blinds, variant, game features",
-            onClick: () => setShowSettings(true),
+            onClick: () => setOpenOverlay({ type: "settings" }),
           },
         ]
       : []),
@@ -207,20 +297,32 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
 
   return (
     <div className="h-screen-dyn flex flex-col overflow-hidden bg-[#201e1f] lg:flex-row">
+      {myTurn && policy.showFloatingActions && (
+        <div className="safe-t safe-x fixed inset-x-0 top-0 z-[60] flex justify-center">
+          <div className="w-full max-w-3xl rounded-b-xl bg-slate-950/95 px-3 pb-2 pt-3 shadow-2xl ring-1 ring-white/10 backdrop-blur">
+            <ActionBar state={state} send={send} now={now} />
+          </div>
+        </div>
+      )}
       {/* main */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* header */}
         <header className="safe-t safe-x flex shrink-0 items-center justify-between gap-2 border-b border-white/10 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-bold text-white">{state.config.roomName}</span>
-            <span className="shrink-0 rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs tracking-widest text-emerald-300 sm:text-sm">
-              {roomId.toUpperCase()}
-            </span>
+            <button
+              onClick={copyCode}
+              title="Copy room code"
+              aria-label="Copy room code"
+              className="touch-target shrink-0 rounded-md bg-white/10 px-2 py-1 font-mono text-xs tracking-widest text-emerald-300 hover:bg-white/20 sm:text-sm"
+            >
+              {copiedCode ? "Copied!" : roomId.toUpperCase()}
+            </button>
             <button
               onClick={copyLink}
               title="Copy invite link"
               aria-label="Copy invite link"
-              className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+              className="touch-target inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-white/60 hover:bg-white/10 hover:text-white"
             >
               {copied ? <Check size={15} /> : <Copy size={15} />}
               <span className="hidden sm:inline">{copied ? "Link copied!" : "Copy invite link"}</span>
@@ -237,13 +339,21 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
               <span className="hidden sm:inline">{connected ? "live" : "reconnecting"}</span>
             </span>
 
-            {/* chat/log — slide-in drawer toggled from the top, on every viewport */}
-            <IconBtn
-              onClick={() => setShowPanel((p) => !p)}
-              label="Chat & log"
-              active={showPanel}
-            >
-              <MessageSquare size={18} />
+            <span className="relative">
+              <IconBtn
+                onClick={() => setOpenOverlay((overlay) => (overlay?.type === "chat" ? null : { type: "chat" }))}
+                label="Chat & log"
+                active={chatOpen}
+              >
+                <MessageSquare size={18} />
+              </IconBtn>
+              {!chatOpen && chatCount > seenChat && (
+                <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[#201e1f]" />
+              )}
+            </span>
+
+            <IconBtn onClick={() => setOpenOverlay({ type: "help" })} label="How to play">
+              <HelpCircle size={18} />
             </IconBtn>
 
             {/* desktop inline controls */}
@@ -259,6 +369,13 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
                 <Palette size={18} />
               </IconBtn>
               <IconBtn
+                onClick={() => setHud(!hud)}
+                label={hud ? "Hide stats HUD" : "Show stats HUD (VPIP/PFR)"}
+                active={hud}
+              >
+                <BarChart3 size={18} />
+              </IconBtn>
+              <IconBtn
                 onClick={() => rtc.toggleMic()}
                 label={rtc.micOn ? "Leave voice" : "Join voice chat"}
                 active={rtc.micOn}
@@ -272,11 +389,11 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
               >
                 {rtc.camOn ? <Video size={18} /> : <VideoOff size={18} />}
               </IconBtn>
-              <IconBtn onClick={() => setShowLedger(true)} label="Ledger & history">
+              <IconBtn onClick={() => setOpenOverlay({ type: "ledger" })} label="Ledger & history">
                 <ScrollText size={18} />
               </IconBtn>
               {isHost && (
-                <IconBtn onClick={() => setShowSettings(true)} label="Table settings">
+                <IconBtn onClick={() => setOpenOverlay({ type: "settings" })} label="Table settings">
                   <Settings size={18} />
                 </IconBtn>
               )}
@@ -284,17 +401,16 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
 
             {/* mobile overflow */}
             <button
-              onClick={() => setShowMore(true)}
+              onClick={() => setOpenOverlay({ type: "more" })}
               title="More"
               aria-label="More options"
-              className="rounded-md p-2 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
+              className="touch-target flex items-center justify-center rounded-md p-2 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
             >
               <MoreHorizontal size={20} />
             </button>
           </div>
         </header>
 
-        {/* table area — the dock below reserves its own space, so no felt padding hack */}
         <div className="relative min-h-0 flex-1">
           <div className="absolute inset-0 p-2 sm:p-3">
             <PokerTable
@@ -306,28 +422,38 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
             />
           </div>
 
-          {/* Floating seat-management cluster — top-LEFT of the felt, kept out of
-              the bottom dock so it can't be fat-fingered while betting. The
-              tourney banner is centered and the header is a separate row above,
-              so a left-anchored cluster overlaps neither. The wrapper is
-              pointer-events-none (buttons re-enable) so it never blocks felt
-              clicks in the gaps. */}
           <div className="pointer-events-none absolute left-2 top-2 z-20 flex flex-col gap-1.5">
             {me && (
               <button
                 onClick={() => send({ type: "stand" })}
-                className="pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
+                className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
               >
                 <LogOut size={15} /> Stand up
               </button>
             )}
             <button
               onClick={leaveTable}
-              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
+              className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
             >
               <DoorOpen size={15} /> Leave table
             </button>
           </div>
+
+          {state.seatedCount <= 1 && !state.handInProgress && !state.tourney?.active && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex w-[min(86%,22rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-black/65 px-5 py-4 text-center shadow-xl ring-1 ring-white/10 backdrop-blur">
+              <p className="text-base font-bold text-white">Invite friends to start</p>
+              <p className="text-sm text-white/70">
+                Share the link or the code <span className="font-mono tracking-widest text-emerald-300">{roomId.toUpperCase()}</span> — they pick a name and sit down.
+              </p>
+              <button
+                onClick={copyLink}
+                className="pointer-events-auto mt-1 inline-flex items-center gap-1.5 rounded-full bg-[#f2b138] px-4 py-2 text-sm font-bold text-[#1a1207] shadow hover:bg-[#ffc24d] active:scale-[.98]"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                {copied ? "Link copied!" : "Copy invite link"}
+              </button>
+            </div>
+          )}
 
           {state.tourney?.active && <TourneyBanner tourney={state.tourney} now={now} />}
 
@@ -339,7 +465,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
           )}
         </div>
 
-        {/* persistent bottom dock (M1): turn controls + seat presence + host start */}
         <BottomDock
           state={state}
           send={send}
@@ -347,44 +472,46 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
           isHost={isHost}
           myTurn={myTurn}
           error={error}
-          onRebuy={() => setShowRebuy(true)}
+          now={now}
+          suppressActionBar={policy.showFloatingActions}
+          onRebuy={() => setOpenOverlay({ type: "rebuy" })}
         />
 
-        {sitSeat !== null && (
+        {openOverlay?.type === "sit" && (
           <BuyInModal
             config={state.config}
-            seatIndex={sitSeat}
+            seatIndex={openOverlay.seat}
             onConfirm={(buyIn) => {
-              send({ type: "sit", seat: sitSeat, buyIn });
-              setSitSeat(null);
+              send({ type: "sit", seat: openOverlay.seat, buyIn });
+              setOpenOverlay(null);
             }}
-            onCancel={() => setSitSeat(null)}
+            onCancel={() => setOpenOverlay(null)}
           />
         )}
 
-        {showRebuy && me && (
+        {openOverlay?.type === "rebuy" && me && (
           <BuyInModal
             config={state.config}
             seatIndex={me.index}
             rebuy
             onConfirm={(amount) => {
               send({ type: "rebuy", amount });
-              setShowRebuy(false);
+              setOpenOverlay(null);
             }}
-            onCancel={() => setShowRebuy(false)}
+            onCancel={() => setOpenOverlay(null)}
           />
         )}
 
-        {showSettings && (
+        {openOverlay?.type === "settings" && (
           <SettingsModal
             config={state.config}
             send={send}
             tourneyActive={!!state.tourney?.active}
-            onClose={() => setShowSettings(false)}
+            onClose={() => setOpenOverlay(null)}
           />
         )}
 
-        {showLedger && (
+        {openOverlay?.type === "ledger" && (
           <LedgerModal
             roomId={roomId}
             ledger={state.ledger}
@@ -392,26 +519,63 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
             histories={histories}
             log={state.log}
             send={send}
-            onClose={() => setShowLedger(false)}
+            onClose={() => setOpenOverlay(null)}
           />
         )}
 
-        {showMore && <MoreSheet title="Table menu" items={moreItems} onClose={() => setShowMore(false)} />}
+        {openOverlay?.type === "more" && (
+          <MoreSheet
+            title="Table menu"
+            items={moreItems}
+            onClose={() => setOpenOverlay((overlay) => (overlay?.type === "more" ? null : overlay))}
+          />
+        )}
+
+        {openOverlay?.type === "help" && <HelpModal onClose={() => setOpenOverlay(null)} />}
 
         {state.tourney?.finished && !resultsDismissed && (
           <TourneyResults tourney={state.tourney} onClose={() => setResultsDismissed(true)} />
         )}
       </div>
 
-      {/* chat/log — slide-in drawer on every viewport, toggled from the header */}
-      {showPanel && (
-        <div className="fixed inset-0 z-50" onClick={() => setShowPanel(false)}>
+      {chatOpen && (
+        <aside className="hidden xl:flex xl:w-80 xl:shrink-0 xl:flex-col xl:border-l xl:border-white/10 xl:p-2">
+          <div className="mb-1 flex items-center justify-between px-1">
+            <span className="text-sm font-semibold text-white/80">Chat &amp; log</span>
+            <button
+              onClick={() => setOpenOverlay(null)}
+              aria-label="Collapse chat"
+              className="touch-target flex items-center justify-center rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <SidePanel state={state} send={send} />
+          </div>
+        </aside>
+      )}
+
+      {chatOpen && (
+        <div className="fixed inset-0 z-50 xl:hidden" onClick={() => setOpenOverlay(null)}>
           <div className="absolute inset-0 bg-black/50" />
           <div
-            className="safe-t absolute inset-y-0 right-0 w-80 max-w-[85vw] bg-[#201e1f] p-2 shadow-2xl"
+            className="safe-t absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col bg-[#201e1f] p-2 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <SidePanel state={state} send={send} />
+            <div className="mb-1 flex items-center justify-between px-1">
+              <span className="text-sm font-semibold text-white/80">Chat &amp; log</span>
+              <button
+                onClick={() => setOpenOverlay(null)}
+                aria-label="Close chat"
+                className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <SidePanel state={state} send={send} />
+            </div>
           </div>
         </div>
       )}

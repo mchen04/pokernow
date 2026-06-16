@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PokerEngine } from "../party/poker/engine.ts";
+import { DISCONNECTED_ACTION_GRACE_MS, PokerEngine } from "../party/poker/engine.ts";
+import { Tournament } from "../party/poker/tournament.ts";
 import { DEFAULT_CONFIG, type TableConfig } from "../common/config.ts";
 import { makeDeck, parseCard, cardCode, type Card } from "../common/cards.ts";
 
@@ -68,6 +69,48 @@ test("heads-up: button posts the small blind and acts first preflop", () => {
   assert.equal(e.buttonSeat, e.toActSeat, "button acts first preflop heads-up");
 });
 
+test("disconnecting the current actor shortens the authoritative action deadline", () => {
+  let now = 10_000;
+  const e = new PokerEngine("r", cfg({ maxSeats: 2, actionTimeSec: 30, timeBankSec: 0 }), () => now);
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  assert.equal(e.startHand(), null);
+  const actor = e.seats[e.toActSeat!]!;
+  assert.equal(e.actionDeadline, now + 30_000);
+
+  now += 5_000;
+  e.setConnected(actor.playerId, false);
+
+  assert.equal(e.actionDeadline, now + DISCONNECTED_ACTION_GRACE_MS);
+});
+
+test("multi-table tournament tick honors disconnected actor grace deadlines", () => {
+  let now = 100_000;
+  const t = new Tournament(
+    "r",
+    cfg({ maxSeats: 2, tourneyTableSize: 2, actionTimeSec: 30, timeBankSec: 0 }),
+    [
+      { playerId: "a", name: "Alice" },
+      { playerId: "b", name: "Bob" },
+      { playerId: "c", name: "Cara" },
+      { playerId: "d", name: "Dan" },
+    ],
+    () => now
+  );
+  const snap = t.snapshotFor("a");
+  const actor = snap.seats[snap.toActSeat!]!.playerId!;
+
+  now += 5_000;
+  t.setConnected(actor, false);
+  const shortened = t.snapshotFor(actor);
+  assert.equal(shortened.actionDeadline, now + DISCONNECTED_ACTION_GRACE_MS);
+
+  now = shortened.actionDeadline! + 250;
+  assert.equal(t.tick(), true);
+  const after = t.snapshotFor(actor);
+  assert.notEqual(after.actionSeq, shortened.actionSeq, "timeout advanced the table");
+});
+
 test("BB gets the option when action is just called around", () => {
   const e = new PokerEngine("r", cfg());
   e.sit("a", "A", 0, 100);
@@ -85,6 +128,29 @@ test("BB gets the option when action is just called around", () => {
   assert.equal(snap.toActSeat, 2);
   assert.ok(snap.legalActions.some((x) => x.type === "check"), "BB can check its option");
   assert.ok(snap.legalActions.some((x) => x.type === "raise"), "BB can raise its option");
+});
+
+test("call pot odds ignore side pots the caller cannot win", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 2, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 20);
+  e.sit("b", "Bob", 1, 200);
+  e.startHand();
+
+  const alice = e.seats[0]!;
+  const bob = e.seats[1]!;
+  e.toActSeat = 0;
+  e.currentBet = 100;
+  e.actionDeadline = 30_000;
+  alice.stack = 10;
+  alice.betThisStreet = 0;
+  alice.committed = 0;
+  bob.stack = 100;
+  bob.betThisStreet = 100;
+  bob.committed = 100;
+
+  const snap = e.snapshotFor("a");
+  assert.equal(snap.legalActions.find((x) => x.type === "call")?.amount, 10);
+  assert.equal(snap.callPotOddsPct, 50, "10 to call for the 20-chip main pot");
 });
 
 test("min-raise is enforced; stale seq and out-of-turn are rejected", () => {
@@ -295,6 +361,9 @@ test("double board: two boards dealt through betting; chips conserved", () => {
   assert.equal(e.phase, "showdown");
   assert.equal(e.boards[0].length, 5);
   assert.equal(e.boards[1].length, 5);
+  const snap = e.snapshotFor("a");
+  assert.equal(snap.seats[0].handLabel, null, "single-board hand labels are suppressed on double-board hands");
+  assert.equal(snap.seats[1].handLabel, null, "single-board hand labels are suppressed on double-board hands");
   assert.equal(totalChips(e), 200, "chips conserved with two boards");
 });
 

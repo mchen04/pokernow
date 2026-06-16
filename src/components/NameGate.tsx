@@ -21,10 +21,14 @@ export function NameGate({
     onDone(n);
   };
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center p-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#0a100d] p-4">
       <div className="w-full max-w-sm rounded-2xl bg-slate-900 p-6 ring-1 ring-white/10">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-2xl leading-none text-[#f2b138]">♠</span>
+          <span className="font-display text-xl font-semibold tracking-tight text-white">Felt</span>
+        </div>
         <h1 className="mb-1 text-xl font-bold text-white">{title}</h1>
-        <p className="mb-4 text-sm text-white/60">{subtitle}</p>
+        <p className="mb-4 text-sm text-white/70">{subtitle}</p>
         <input
           autoFocus
           value={draft}
@@ -36,7 +40,7 @@ export function NameGate({
         <button
           disabled={!draft.trim()}
           onClick={submit}
-          className="w-full rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-500 disabled:opacity-40"
+          className="w-full rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-white/55"
         >
           {cta}
         </button>

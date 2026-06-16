@@ -5,6 +5,7 @@ import { computeEquity, mulberry32 } from "@common/equity";
 import { PlayingCard } from "./PlayingCard";
 import { downloadLedgerCsv, downloadLogText, downloadSessionJson } from "../lib/download";
 import { X, ArrowLeft, Download } from "./Icon";
+import { StatsTab } from "./LedgerStatsTab";
 
 function boardLenAtStep(actions: string[], step: number): number {
   let n = 0;
@@ -112,13 +113,14 @@ function ReplayView({ hand, onBack }: { hand: HandSummary; onBack: () => void })
         })}
       </div>
       {equity && (
-        <p className="text-center text-[10px] text-white/35">
+        <p className="text-center text-[10px] text-white/55">
           Win % computed live from the revealed hands — solver-grade equity at each street.
         </p>
       )}
 
-      {/* action log up to step */}
-      <div ref={logRef} className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-2 text-[12px] text-white/75">
+      {/* action log up to step — shorter on short viewports so the board, cards,
+          and the sticky step controls all stay on screen in landscape. */}
+      <div ref={logRef} className="max-h-24 overflow-y-auto rounded-lg bg-black/30 p-2 text-[12px] text-white/75 sm:max-h-40">
         {hand.actions.slice(0, step).map((a, i) => (
           <div key={i} className={i === step - 1 ? "font-semibold text-emerald-300" : ""}>
             {a}
@@ -126,148 +128,31 @@ function ReplayView({ hand, onBack }: { hand: HandSummary; onBack: () => void })
         ))}
       </div>
 
-      {/* controls */}
-      <div className="flex items-center justify-center gap-2">
+      {/* controls — pinned to the bottom of the scroll area so Prev/Play/Next
+          stay reachable on short (landscape phone) viewports without scrolling. */}
+      <div className="sticky bottom-0 -mx-5 flex items-center justify-center gap-2 border-t border-white/10 bg-slate-900 px-5 py-2">
         <button
           onClick={() => setStep((s) => Math.max(1, s - 1))}
-          className="rounded-md bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-600"
+          className="min-h-[40px] rounded-md bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-600"
         >
           ‹ Prev
         </button>
         <button
           onClick={() => setPlaying((p) => !p)}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-emerald-500"
+          className="min-h-[40px] rounded-md bg-emerald-700 px-4 py-1.5 text-sm font-bold text-white hover:bg-emerald-600"
         >
           {playing ? "Pause" : "Play"}
         </button>
         <button
           onClick={() => setStep((s) => Math.min(total, s + 1))}
-          className="rounded-md bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-600"
+          className="min-h-[40px] rounded-md bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-600"
         >
           Next ›
         </button>
-        <span className="ml-2 text-xs text-white/40">
+        <span className="ml-2 text-xs text-white/55">
           {step}/{total}
         </span>
       </div>
-    </div>
-  );
-}
-
-// ── Stats tab ────────────────────────────────────────────────────────────────
-type StatView = "preflop" | "postflop" | "results";
-
-// Guard every numeric stat: a missing/NaN value renders as a neutral dash
-// rather than leaking the literal "undefined"/"NaN" into the table.
-const num = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
-const pctCell = (v: number | null | undefined) => (num(v) ? `${v}%` : "—");
-const afCell = (v: number | null | undefined) => (num(v) ? v.toFixed(1) : "—");
-
-function StatsTab({ stats }: { stats: PlayerStats[] }) {
-  const [view, setView] = useState<StatView>("preflop");
-
-  if (stats.length === 0) {
-    return <p className="py-6 text-center text-sm text-white/40">No hands played yet.</p>;
-  }
-
-  // Column definitions per view. Each: header, tooltip, and a cell renderer.
-  const COLUMNS: Record<StatView, { key: string; label: string; title: string; cell: (s: PlayerStats) => React.ReactNode; cls?: (s: PlayerStats) => string }[]> = {
-    preflop: [
-      { key: "vpip", label: "VPIP", title: "Voluntarily put $ in pot", cell: (s) => pctCell(s.vpip) },
-      { key: "pfr", label: "PFR", title: "Pre-flop raise", cell: (s) => pctCell(s.pfr) },
-      { key: "3b", label: "3-Bet", title: "Re-raised pre-flop when given the chance", cell: (s) => pctCell(s.threeBet) },
-      { key: "f3b", label: "Fold→3B", title: "Folded the open when facing a 3-bet", cell: (s) => pctCell(s.foldTo3bet) },
-    ],
-    postflop: [
-      { key: "af", label: "AF", title: "Aggression factor (bets+raises)/calls", cell: (s) => afCell(s.af) },
-      { key: "agg", label: "Agg%", title: "Aggression frequency", cell: (s) => pctCell(s.aggPct) },
-      { key: "wtsd", label: "WTSD", title: "Went to showdown (given saw flop)", cell: (s) => pctCell(s.wtsd) },
-      { key: "wsd", label: "W$SD", title: "Won money at showdown", cell: (s) => pctCell(s.wsd) },
-      { key: "cb", label: "C-Bet", title: "Flop continuation bet as PF aggressor", cell: (s) => pctCell(s.cbet) },
-      { key: "fcb", label: "Fold→CB", title: "Folded facing a flop c-bet", cell: (s) => pctCell(s.foldToCbet) },
-    ],
-    results: [
-      {
-        key: "net",
-        label: "Net",
-        title: "Session net (from the ledger)",
-        cell: (s) => fmtNet(s.net),
-        cls: (s) => (num(s.net) && s.net > 0 ? "text-emerald-400" : num(s.net) && s.net < 0 ? "text-rose-400" : "text-white/60"),
-      },
-      {
-        key: "bb100",
-        label: "BB/100",
-        title: "Big blinds won per 100 hands (cash only)",
-        cell: (s) => (s.bb100 == null ? "—" : (s.bb100 > 0 ? "+" : "") + s.bb100),
-        cls: (s) => (s.bb100 == null ? "text-white/40" : s.bb100 > 0 ? "text-emerald-400" : s.bb100 < 0 ? "text-rose-400" : "text-white/60"),
-      },
-      { key: "won", label: "Won", title: "Hands won (win rate)", cell: (s) => `${num(s.handsWon) ? s.handsWon : 0} (${num(s.winRate) ? s.winRate : 0}%)` },
-      { key: "big", label: "Big pot", title: "Biggest pot won", cell: (s) => fmtMoney(s.biggestPotWon) },
-      {
-        key: "luck",
-        label: "Luck",
-        title: "All-in luck: actual − expected (EV) across all-in showdowns",
-        cell: (s) => (s.allInCount === 0 ? "—" : fmtNet(s.allInLuck)),
-        cls: (s) => (s.allInCount === 0 ? "text-white/40" : num(s.allInLuck) && s.allInLuck > 0 ? "text-emerald-400" : num(s.allInLuck) && s.allInLuck < 0 ? "text-rose-400" : "text-white/60"),
-      },
-    ],
-  };
-
-  const cols = COLUMNS[view];
-
-  return (
-    <div>
-      <div className="mb-3 inline-flex rounded-lg bg-black/30 p-0.5 text-xs font-semibold">
-        {(["preflop", "postflop", "results"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={`rounded-md px-3 py-1.5 capitalize transition ${
-              view === v ? "bg-emerald-600 text-white" : "text-white/55 hover:text-white"
-            }`}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/10 text-left text-white/50">
-              <th className="py-1.5 pr-2 font-medium">Player</th>
-              <th className="py-1.5 px-1 text-right font-medium" title="Hands dealt in">
-                Hands
-              </th>
-              {cols.map((c) => (
-                <th key={c.key} className="py-1.5 px-1 text-right font-medium" title={c.title}>
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {stats.map((s) => (
-              <tr key={s.playerId} className="border-b border-white/5">
-                <td className="py-1.5 pr-2 text-white/90">{s.name}</td>
-                <td className="py-1.5 px-1 text-right tabular-nums text-white/60">{s.handsPlayed}</td>
-                {cols.map((c) => (
-                  <td
-                    key={c.key}
-                    className={`py-1.5 px-1 text-right tabular-nums ${c.cls ? c.cls(s) : "text-white/80"}`}
-                  >
-                    {c.cell(s)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-[11px] text-white/35">
-        Full HUD analytics for everyone — VPIP/PFR, 3-bet, aggression, showdown, c-bet, BB/100 and
-        all-in luck. No PLUS subscription, no gate.
-      </p>
     </div>
   );
 }
@@ -298,16 +183,20 @@ export function LedgerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      {/* Fixed-size frame — never resizes between tabs or as rows/hands are added.
-          The header + tab row are fixed-height; the body absorbs all change by
-          scrolling internally. */}
+      {/* Content-sized frame, vertically centered, capped at 85vh — short tabs
+          (a 4-row ledger) sit in a compact box instead of a tall half-empty one;
+          long ones scroll internally. Header + tab row are fixed-height. */}
       <div
-        className="flex h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-white/10"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-white/10 sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 className="text-lg font-bold text-white">Ledger &amp; history</h2>
-          <button onClick={onClose} aria-label="Close" className="text-white/50 hover:text-white">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="touch-target -mr-1 flex items-center justify-center rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+          >
             <X size={20} />
           </button>
         </div>
@@ -319,7 +208,7 @@ export function LedgerModal({
                 key={t}
                 onClick={() => setTab(t)}
                 className={`rounded-t-lg px-3 py-2 text-sm font-semibold capitalize ${
-                  tab === t ? "bg-white/10 text-white" : "text-white/50 hover:text-white"
+                  tab === t ? "bg-white/10 text-white" : "text-white/65 hover:text-white"
                 }`}
               >
                 {t === "hands" ? `Hands (${histories.length})` : t === "stats" ? "Stats" : "Ledger"}
@@ -335,7 +224,7 @@ export function LedgerModal({
             <div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-white/50">
+                  <tr className="border-b border-white/10 text-left text-white/65">
                     <th className="py-1.5 font-medium">Player</th>
                     <th className="py-1.5 text-right font-medium">Buy-in</th>
                     <th className="py-1.5 text-right font-medium">Stack</th>
@@ -359,7 +248,7 @@ export function LedgerModal({
                   ))}
                 </tbody>
               </table>
-              {ledger.length === 0 && <p className="py-6 text-center text-sm text-white/40">No buy-ins yet.</p>}
+              {ledger.length === 0 && <p className="py-6 text-center text-sm text-white/55">No buy-ins yet.</p>}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button onClick={() => downloadLedgerCsv(roomId, ledger)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-600">
                   <Download size={13} /> Ledger CSV
@@ -371,7 +260,7 @@ export function LedgerModal({
                   <Download size={13} /> Session JSON
                 </button>
               </div>
-              <p className="mt-2 text-[11px] text-white/35">
+              <p className="mt-2 text-[11px] text-white/55">
                 Everything is uncapped and free to download — the full unedited log, every hand.
               </p>
             </div>
@@ -395,7 +284,7 @@ export function LedgerModal({
                 );
               })}
               {histories.length === 0 && (
-                <p className="py-6 text-center text-sm text-white/40">No completed hands yet.</p>
+                <p className="py-6 text-center text-sm text-white/55">No completed hands yet.</p>
               )}
             </div>
           )}

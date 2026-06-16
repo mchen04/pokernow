@@ -14,6 +14,14 @@ export interface TableFit {
 
 const LANDSCAPE = { w: 1000, h: 620 };
 const PORTRAIT = { w: 640, h: 900 };
+// A flatter, wider design box for wide viewports (desktop, widescreen, landscape
+// tablet/phone). A tall 1.61 oval gets height-pinned on a 16:9/16:10 area and
+// leaves big horizontal dead margins; this ~2:1 box lets the felt grow to fill
+// the width (a realistic wide poker oval) instead of letterboxing.
+const WIDE = { w: 1000, h: 520 };
+// Even flatter for very short areas (landscape phone), which are height-bound:
+// a shorter design box lets the felt grow wider into the available width.
+const WIDE_SHORT = { w: 1000, h: 400 };
 
 // Seat pods overhang the design box: opponent cards rise ABOVE the top seats and
 // the hero's pod + its last-action/win badge hang BELOW the bottom seat. The
@@ -23,8 +31,8 @@ const PORTRAIT = { w: 640, h: 900 };
 // px) on each edge so the box never butts the clip boundary, biased to the larger
 // top (card) overhang and nudged down to balance it. Constants are absolute pod
 // px, so the same values are correct for both the landscape and portrait box.
-const PAD_TOP = 48;
-const PAD_BOTTOM = 36;
+const PAD_TOP = 40;
+const PAD_BOTTOM = 44;
 
 export function useFitSize() {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,8 +45,11 @@ export function useFitSize() {
       const cw = el.clientWidth;
       const ch = el.clientHeight;
       if (cw === 0 || ch === 0) return;
-      // portrait when the area is clearly taller than wide
-      const base = ch > cw * 1.1 ? PORTRAIT : LANDSCAPE;
+      // portrait when clearly taller than wide; the flat WIDE box whenever the
+      // area is meaningfully wider than tall (desktop/widescreen/landscape) so the
+      // felt fills the width; the 1.61 LANDSCAPE box only for near-square areas.
+      const base =
+        ch > cw * 1.1 ? PORTRAIT : ch < 420 ? WIDE_SHORT : cw > ch * 1.5 ? WIDE : LANDSCAPE;
       // Fit against an inflated height so the reserved headroom is never eaten by
       // a height-bound scale; then center+nudge so each edge keeps its reserve.
       const effectiveH = base.h + PAD_TOP + PAD_BOTTOM;

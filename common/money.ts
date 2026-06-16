@@ -41,6 +41,16 @@ export function fmtChips(n: number): string {
   return fmtMoney(n);
 }
 
+// Big-blind equivalent of a chip amount, for the bet/call/pot readouts pros
+// think in: "6 BB", "2.5 BB". One decimal under 10 BB, whole numbers above.
+// Returns "" when there is no usable big blind so callers can omit it cleanly.
+export function fmtBB(chips: number, bb: number): string {
+  if (!bb || !Number.isFinite(bb) || !Number.isFinite(chips)) return "";
+  const n = chips / bb;
+  const s = n >= 10 ? Math.round(n).toString() : (Math.round(n * 10) / 10).toString();
+  return `${s} BB`;
+}
+
 // Signed net for win/loss badges: "+$1.2k" / "-$340". Compact form, with the
 // sign prefixed so we never get "--$340".
 export function fmtNet(n: number): string {
