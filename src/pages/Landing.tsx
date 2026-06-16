@@ -62,7 +62,7 @@ function Feature({
         </span>
       </div>
       <h3 className="mb-1 font-display text-xl font-semibold text-[#f3efe4]">{title}</h3>
-      <p className="text-sm leading-relaxed text-white/55">{desc}</p>
+      <p className="text-[15px] leading-relaxed text-white/70">{desc}</p>
     </div>
   );
 }
@@ -178,7 +178,7 @@ export default function Landing() {
                 </button>
               </div>
             </div>
-            <p className="reveal mt-4 text-sm text-white/35" style={{ animationDelay: "440ms" }}>
+            <p className="reveal mt-4 text-sm text-white/55" style={{ animationDelay: "440ms" }}>
               Play-money only. No accounts, no real stakes — just your group chat and a table.
             </p>
           </div>

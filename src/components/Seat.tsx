@@ -23,17 +23,26 @@ function avatarColor(seed: string): string {
 function Avatar({ name, seed }: { name: string; seed: string }) {
   return (
     <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white/95 ${avatarColor(seed)}`}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white/95 ${avatarColor(seed)}`}
     >
       {name.charAt(0).toUpperCase() || "?"}
     </div>
   );
 }
 
-function Badge({ children, className }: { children: React.ReactNode; className: string }) {
+function Badge({
+  children,
+  className,
+  title,
+}: {
+  children: React.ReactNode;
+  className: string;
+  title?: string;
+}) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center h-5 min-w-[20px] px-1 rounded-full text-[11px] font-bold whitespace-nowrap ${className}`}
+      title={title}
+      className={`inline-flex shrink-0 items-center justify-center h-5 min-w-[20px] px-1 rounded-full text-[12px] font-bold whitespace-nowrap ${className}`}
     >
       {children}
     </span>
@@ -70,6 +79,7 @@ interface SeatProps {
   actionTimeSec: number;
   onSit: (seatIndex: number) => void;
   stream?: MediaStream | null;
+  hudText?: string | null;
 }
 
 function SeatImpl({
@@ -80,15 +90,16 @@ function SeatImpl({
   actionTimeSec,
   onSit,
   stream,
+  hudText,
 }: SeatProps) {
   if (seat.empty) {
     return (
       <button
         onClick={() => onSit(seat.index)}
-        className="group flex flex-col items-center justify-center w-[104px] h-[58px] rounded-full border border-dashed border-white/25 bg-black/20 hover:bg-emerald-500/20 hover:border-emerald-300/60 transition text-white/50 hover:text-white"
+        className="group flex flex-col items-center justify-center w-[104px] h-[58px] rounded-full border border-dashed border-white/30 bg-black/40 hover:bg-emerald-600/25 hover:border-emerald-300/60 transition text-white/85 hover:text-white"
       >
-        <span className="text-xs font-semibold">Sit here</span>
-        <span className="text-[10px] opacity-70">Seat {seat.index + 1}</span>
+        <span className="text-xs font-bold">Sit here</span>
+        <span className="text-[11px] text-white/65">Seat {seat.index + 1}</span>
       </button>
     );
   }
@@ -117,9 +128,16 @@ function SeatImpl({
   // so non-hero seats shrink to xs. min-h reserves the row's height so the pod
   // never shifts when cards appear/disappear (no-layout-shift invariant).
   const n = seat.holeCards?.length || (seat.hasCards ? seat.cardCount || 2 : 0);
-  const cardSize = n >= 4 && !isHero ? "xs" : "sm";
+  // The hero's own hole cards are the most important info on the table, so they
+  // get a size up (Hold'em) — never the smallest cards on the felt. 4-card Omaha
+  // stays smaller so the wider row still fits the pod.
+  const cardSize = isHero ? (n >= 4 ? "sm" : "md") : n >= 4 ? "xs" : "sm";
   const cardsEl = (
-    <div className="flex gap-0.5 z-10 mb-1 min-h-[42px] items-end">
+    <div
+      className={`flex gap-0.5 z-10 mb-1 items-end ${isHero ? "min-h-[64px]" : "min-h-[42px]"} ${
+        seat.winner ? "rounded-lg ring-2 ring-yellow-300/90" : ""
+      }`}
+    >
       {seat.holeCards
         ? seat.holeCards.map((c, i) => <PlayingCard key={i} card={c} size={cardSize} />)
         : seat.hasCards
@@ -138,18 +156,20 @@ function SeatImpl({
     >
       <Avatar name={seat.name} seed={seat.playerId ?? seat.name} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1">
-          <span className="seat-name truncate font-semibold leading-tight text-white">
-            {seat.name}
-            {isHero && <span className="text-emerald-300"> (you)</span>}
-          </span>
+        <div className="flex items-baseline gap-1">
+          <span className="seat-name truncate font-semibold leading-tight text-white">{seat.name}</span>
+          {isHero && (
+            <span className="shrink-0 rounded bg-emerald-500/20 px-1 text-[10px] font-bold leading-none text-emerald-300">
+              YOU
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <span className="seat-stack font-bold leading-tight text-emerald-300 tabular-nums">
             {fmtChips(seat.stack)}
           </span>
           {seat.allIn && <Badge className="bg-red-500 text-white">ALL IN</Badge>}
-          {seat.sittingOut && !seat.inHand && <span className="text-[10px] text-white/40">out</span>}
+          {seat.sittingOut && !seat.inHand && <span className="text-[11px] text-white/55">out</span>}
         </div>
       </div>
 
@@ -165,10 +185,10 @@ function SeatImpl({
 
       {/* badges */}
       <div className="absolute -top-2 -left-2 flex gap-0.5">
-        {seat.isButton && <Badge className="bg-white text-slate-900">D</Badge>}
-        {seat.isSmallBlind && <Badge className="bg-sky-500 text-white">SB</Badge>}
-        {seat.isBigBlind && <Badge className="bg-indigo-500 text-white">BB</Badge>}
-        {seat.isStraddle && <Badge className="bg-fuchsia-500 text-white">STR</Badge>}
+        {seat.isButton && <Badge title="Dealer button" className="bg-white text-slate-900">D</Badge>}
+        {seat.isSmallBlind && <Badge title="Small blind" className="bg-sky-700 text-white">SB</Badge>}
+        {seat.isBigBlind && <Badge title="Big blind" className="bg-indigo-700 text-white">BB</Badge>}
+        {seat.isStraddle && <Badge title="Straddle" className="bg-fuchsia-700 text-white">STR</Badge>}
       </div>
       {seat.bounty && (
         <div className="absolute -top-2 -right-2">
@@ -176,16 +196,43 @@ function SeatImpl({
         </div>
       )}
 
-      {/* last action / win */}
-      {seat.winner && seat.wonAmount > 0 ? (
-        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-slate-900">
-          {fmtNet(seat.wonAmount)}
+      {/* optional pro HUD: VPIP / PFR % beside the seat */}
+      {hudText && !seat.bounty && (
+        <div
+          title="VPIP / PFR / 3-Bet %"
+          className="absolute -top-2 right-1 rounded bg-slate-950/90 px-1 text-[10px] font-bold leading-tight tabular-nums text-sky-300 ring-1 ring-white/15"
+        >
+          {hudText}
         </div>
-      ) : seat.lastAction && seat.inHand ? (
-        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white/90">
-          {seat.lastAction}
+      )}
+
+      {/* status line below the pod: an explicit "TO ACT" cue (a non-color signal
+          for the active seat, paired with the ring + timer bar), or the win
+          amount, or the last action — plus, at showdown, the made-hand label so
+          everyone can see WHAT beat what without parsing the cards. */}
+      {(seat.isToAct || (seat.winner && seat.wonAmount > 0) || (seat.lastAction && seat.inHand) ||
+        (seat.revealed && seat.handLabel)) && (
+        <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-0.5">
+          {seat.isToAct ? (
+            <span className="whitespace-nowrap rounded-full bg-amber-300 px-2 py-0.5 text-[12px] font-bold text-slate-900">
+              TO ACT
+            </span>
+          ) : seat.winner && seat.wonAmount > 0 ? (
+            <span className="whitespace-nowrap rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-slate-900">
+              {fmtNet(seat.wonAmount)}
+            </span>
+          ) : seat.lastAction && seat.inHand ? (
+            <span className="whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[12px] font-medium text-white">
+              {seat.lastAction}
+            </span>
+          ) : null}
+          {seat.revealed && seat.handLabel && (
+            <span className="whitespace-nowrap rounded-full bg-emerald-900/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 ring-1 ring-emerald-400/25">
+              {seat.handLabel}
+            </span>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 
@@ -223,7 +270,8 @@ function seatPropsEqual(a: SeatProps, b: SeatProps): boolean {
     a.actionDeadline === b.actionDeadline &&
     a.actionTimeSec === b.actionTimeSec &&
     a.onSit === b.onSit &&
-    a.stream === b.stream
+    a.stream === b.stream &&
+    a.hudText === b.hudText
   );
 }
 

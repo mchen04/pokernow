@@ -85,6 +85,7 @@ export default class PokerServer implements Party.Server {
     if (pid && !this.hasOtherConnection(pid, conn.id)) {
       this.log("info", "disconnect", { playerId: pid });
       this.engine.setConnected(pid, false);
+      this.tournament?.setConnected(pid, false);
       this.broadcast();
     }
     // Dead-lobby cleanup: when the last connection leaves, stop every timer so
@@ -93,6 +94,7 @@ export default class PokerServer implements Party.Server {
     // be evicted by the platform. The game state is kept in memory so a quick
     // reconnect (before eviction) resumes exactly where it left off.
     if (!this.hasAnyConnection(conn.id)) this.suspend();
+    else this.scheduleTimers();
   }
 
   // Stop all background work. Called when the room empties out.

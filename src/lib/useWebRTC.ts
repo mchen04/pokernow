@@ -147,7 +147,9 @@ export function useWebRTC(
         setError(null);
         send({ type: "media", mic: wantMic, cam: wantCam });
       } catch {
-        setError("Mic/camera permission denied — playing on without it.");
+        const what =
+          wantMic && wantCam ? "Mic & camera" : wantCam ? "Camera" : "Microphone";
+        setError(`${what} permission denied — enable it in your browser's site settings, then try again. The game plays on without it.`);
         return false;
       }
       return true;

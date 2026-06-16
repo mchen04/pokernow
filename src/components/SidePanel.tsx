@@ -1,11 +1,22 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClientMessage, PublicTableState } from "@common/protocol";
 
+function savedPanelTab(): "chat" | "log" {
+  return localStorage.getItem("pn.panelTab") === "log" ? "log" : "chat";
+}
+
 export function SidePanel({ state, send }: { state: PublicTableState; send: (m: ClientMessage) => void }) {
-  const [tab, setTab] = useState<"chat" | "log">("chat");
+  // Remember the player's last-used tab (chat for banter vs log for the
+  // play-by-play), defaulting to chat — the panel's primary purpose.
+  const [tab, setTabState] = useState<"chat" | "log">(() => savedPanelTab());
+  const setTab = (t: "chat" | "log") => {
+    setTabState(t);
+    localStorage.setItem("pn.panelTab", t);
+  };
   const [draft, setDraft] = useState("");
   // The active scroll container (log OR chat — only one is mounted at a time).
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   // Whether the view is pinned to the bottom. We only auto-scroll when the user
   // is already near the bottom, so scrolling up to read history isn't yanked
   // away — but new messages always come into view when you're at the bottom.
@@ -36,6 +47,7 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
     send({ type: "chat", text });
     setDraft("");
     stuck.current = true; // sending a message always scrolls you to it
+    inputRef.current?.focus(); // keep focus so you can fire off banter quickly
   };
 
   return (
@@ -58,7 +70,7 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          className="flex-1 overflow-y-auto p-2 text-[12px] leading-relaxed text-white/80"
+          className="flex-1 overflow-y-auto p-2 text-[13px] leading-relaxed text-white/80"
         >
           {state.log.map((e) => (
             <div key={e.id} className="border-b border-white/5 py-0.5">
@@ -71,8 +83,11 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
           <div
             ref={scrollRef}
             onScroll={onScroll}
-            className="flex-1 overflow-y-auto p-2 text-[12px] leading-relaxed"
+            className="flex-1 overflow-y-auto p-2 text-[13px] leading-relaxed"
           >
+            {state.chat.length === 0 && (
+              <p className="px-1 py-2 text-white/45">No messages yet — say hi 👋 or tap a reaction below.</p>
+            )}
             {state.chat.map((m) => (
               <div key={m.id} className={m.system ? "text-amber-300/80 italic" : "text-white/85"}>
                 {!m.system && <span className="font-semibold text-emerald-300">{m.name}: </span>}
@@ -80,8 +95,25 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
               </div>
             ))}
           </div>
-          <div className="flex gap-1 border-t border-white/10 p-2">
+          {/* quick reactions — one-tap banter for a friends game (sent as chat) */}
+          <div className="flex gap-1 border-t border-white/10 px-2 pt-2">
+            {["👍", "😂", "🔥", "😮", "🤔", "💰", "🙈", "🎉"].map((e) => (
+              <button
+                key={e}
+                onClick={() => {
+                  send({ type: "chat", text: e });
+                  stuck.current = true;
+                }}
+                aria-label={`React ${e}`}
+                className="flex-1 rounded-md py-1 text-lg leading-none hover:bg-white/10 active:scale-90"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 p-2">
             <input
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendChat()}
@@ -90,7 +122,7 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
             />
             <button
               onClick={sendChat}
-              className="rounded-md bg-emerald-600 px-3 py-1 text-sm font-semibold text-white hover:bg-emerald-500"
+              className="rounded-md bg-emerald-700 px-3 py-1 text-sm font-semibold text-white hover:bg-emerald-600"
             >
               Send
             </button>

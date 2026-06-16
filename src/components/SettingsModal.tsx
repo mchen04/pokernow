@@ -30,7 +30,7 @@ function Num({
           onChange={(e) => onChange(Number(e.target.value))}
           className="w-24 rounded-md bg-slate-800 px-2 py-1 text-right text-sm font-semibold text-white outline-none ring-1 ring-white/10 focus:ring-emerald-400"
         />
-        {suffix && <span className="w-7 text-xs text-white/40">{suffix}</span>}
+        {suffix && <span className="w-7 text-xs text-white/55">{suffix}</span>}
       </span>
     </label>
   );
@@ -49,19 +49,31 @@ function Toggle({
 }) {
   return (
     <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left hover:bg-white/5"
+      className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left hover:bg-white/5"
     >
       <span>
         <span className="block text-sm font-medium text-white/90">{label}</span>
-        <span className="block text-xs text-white/45">{desc}</span>
+        <span className="block text-xs text-white/65">{desc}</span>
       </span>
-      <span
-        className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? "bg-emerald-500" : "bg-slate-600"}`}
-      >
+      {/* non-color ON/OFF cue (a11y): a readable text label plus the knob
+          position convey state, not color alone */}
+      <span className="flex shrink-0 items-center gap-2">
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${checked ? "left-[22px]" : "left-0.5"}`}
-        />
+          className={`w-7 text-right text-[11px] font-bold ${checked ? "text-emerald-300" : "text-white/55"}`}
+        >
+          {checked ? "On" : "Off"}
+        </span>
+        <span
+          className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-emerald-600" : "bg-slate-700"}`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${checked ? "left-[22px]" : "left-0.5"}`}
+          />
+        </span>
       </span>
     </button>
   );
@@ -95,7 +107,11 @@ export function SettingsModal({
       >
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 className="text-lg font-bold text-white">Table settings</h2>
-          <button onClick={onClose} aria-label="Close" className="text-white/50 hover:text-white">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="touch-target -mr-1 flex items-center justify-center rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+          >
             <X size={20} />
           </button>
         </div>
@@ -116,8 +132,8 @@ export function SettingsModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {tab === "game" ? (
-            <div className="space-y-1">
-              <label className="flex items-center justify-between gap-3 py-1.5">
+            <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+              <label className="flex items-center justify-between gap-3 py-1.5 sm:col-span-2">
                 <span className="text-sm text-white/70">Table name</span>
                 <input
                   value={cfg.roomName}
@@ -125,7 +141,7 @@ export function SettingsModal({
                   className="w-48 rounded-md bg-slate-800 px-2 py-1 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-emerald-400"
                 />
               </label>
-              <label className="flex items-center justify-between gap-3 py-1.5">
+              <label className="flex items-center justify-between gap-3 py-1.5 sm:col-span-2">
                 <span className="text-sm text-white/70">Game</span>
                 <select
                   value={cfg.variant}
@@ -147,11 +163,11 @@ export function SettingsModal({
               <Num label="Seats" value={cfg.maxSeats} onChange={(n) => set("maxSeats", n)} min={2} suffix="2-10" />
               <Num label="Action time" value={cfg.actionTimeSec} onChange={(n) => set("actionTimeSec", n)} min={10} suffix="sec" />
               <Num label="Time bank" value={cfg.timeBankSec} onChange={(n) => set("timeBankSec", n)} min={0} suffix="sec" />
-              <div className="mt-2 border-t border-white/10 pt-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+              <div className="mt-2 border-t border-white/10 pt-2 text-xs font-semibold uppercase tracking-wider text-white/60 sm:col-span-2">
                 Tournament (Sit &amp; Go / MTT)
               </div>
               {tourneyActive && (
-                <div className="my-1 flex items-center justify-between gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
+                <div className="my-1 flex items-center justify-between gap-3 rounded-lg bg-amber-500/10 px-3 py-2 sm:col-span-2">
                   <span className="text-xs text-amber-200">A tournament is in progress.</span>
                   <button
                     onClick={() => {
@@ -190,7 +206,7 @@ export function SettingsModal({
           <button onClick={onClose} className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600">
             Cancel
           </button>
-          <button onClick={save} className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+          <button onClick={save} className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-600">
             Save settings
           </button>
         </div>

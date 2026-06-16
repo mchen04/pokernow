@@ -47,19 +47,44 @@ body {
   padding-right: max(0.75rem, env(safe-area-inset-right));
 }
 
-/* Constant dock body height (M1). The dock swaps between the betting controls
-   (~3 rows) and the seat/host control row. Letting it size to content made the
-   table area grow/shrink every time the turn entered or left the hero, and
-   useFitSize re-scaled the whole felt — a jarring jump. We pin ONE FIXED height
-   (a hard cap, not a floor) sized for the compacted betting bar; every state
-   centers within it, so all states are identical height and the table above
-   never re-fits. Stand-up / Leave-table moved OUT of the dock to the felt's
-   top-left cluster, so the non-turn branch is now at most sit-back-in **or**
-   Start game + Start tournament + Rabbit hunt + an info span — comfortably
-   inside this height. If a future dense state exceeds it, the control row's own
-   `overflow-y-auto` scrolls internally instead of growing the dock. */
+/* The dock sizes to its content: a tall betting bar on the hero's turn, a
+   compact status row the rest of the time. The felt re-fits to the reclaimed
+   space with a smooth transition (see PokerTable), so swapping never jumps —
+   this gives short viewports (laptop, tablet, landscape phone) a much larger
+   table whenever it isn't the hero's turn. */
 .dock-body {
-  height: 7.5rem; /* 120px — fits the compacted ActionBar (preset+slider+action ≈118px) */
+  min-height: 2.75rem;
+}
+.bet-preset {
+  height: 2.25rem; /* 36px */
+}
+/* Touch devices and tablet-and-down widths get 44px preset targets (kept compact
+   on roomy desktop pointers). The width clause also covers emulated tablet
+   viewports that don't report a coarse pointer. */
+@media (pointer: coarse), (max-width: 1280px) {
+  .bet-preset {
+    min-height: 44px;
+  }
+}
+/* Landscape phone (very short): drop the tall slider thumb and the turn-info text
+   line and shrink the presets, so the acting dock stays short and the felt keeps
+   its scarce vertical space. The exact-amount box stays (custom sizing without the
+   slider's height), and presets cover the common sizes. */
+@media (max-height: 480px) {
+  .dock-slider-control,
+  .dock-range-help {
+    display: none;
+  }
+  .dock-exact-row {
+    justify-content: flex-end;
+  }
+  .dock-turn-info {
+    display: none;
+  }
+  .bet-preset {
+    height: 2rem;
+    min-height: 2rem;
+  }
 }
 
 /* Enlarged bet-slider thumb — native range thumbs are ~16px, far under the 44pt
@@ -97,6 +122,50 @@ body {
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.16);
 }
+/* Bigger thumb + taller hit area on touch (and tablet-and-down widths, which
+   emulated touch viewports report as a fine pointer) so the slider is grabbable
+   by finger. The transparent vertical padding enlarges the clickable band around
+   the thin visual track to ~44px. */
+@media (pointer: coarse), (max-width: 1280px) {
+  .dock-range {
+    height: 44px;
+    padding-block: 18px;
+    background-clip: content-box;
+  }
+  .dock-range::-webkit-slider-thumb {
+    width: 38px;
+    height: 38px;
+  }
+  .dock-range::-moz-range-thumb {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+/* Comfortable touch targets on touch devices and tablet-and-down widths (the
+   width clause also covers emulated touch viewports that report a fine pointer).
+   Applied to otherwise-small controls: header icon buttons, modal close, buy-in
+   presets, sub-tabs, the exact-bet box. */
+@media (pointer: coarse), (max-width: 1280px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ── Accessibility: a visible keyboard focus ring on every interactive control.
+   Uses the brand amber for high contrast against both the green felt and the
+   dark chrome; only shows for keyboard focus (:focus-visible), never on mouse. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #f2b138;
+  outline-offset: 2px;
+}
 
 /* M3 — legibility floor. The whole table scales as one transform unit, so on a
    360px 9-max phone (scale ~0.56) a 13px seat label would render at ~7px. Counter
@@ -104,11 +173,14 @@ body {
    *effective* (designPx * scale), while the board/cards/pot keep scaling as one
    unit. --table-scale is published on the scaled design box. clamp() floors at the
    desktop size and caps so pods never balloon at very small scales. */
+/* Capped at 16px (was 21px): the old ceiling inflated the font so much at small
+   table scales that even short names ("Robin") truncated in the fixed-width pod.
+   The 13px floor still holds legibility on a small phone. */
 .seat-name {
-  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 21px);
+  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 16px);
 }
 .seat-stack {
-  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 21px);
+  font-size: clamp(13px, calc(11.5px / var(--table-scale, 1)), 16px);
 }
 
 /* Hide the scrollbar on the (horizontally scrollable) tournament banner pill so
@@ -119,6 +191,48 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* On short (landscape-phone) viewports, compact the More-sheet rows so all
+   items fit without hiding Ledger/Settings below the fold. */
+@media (max-height: 480px) {
+  /* Two columns + compact rows so all menu items fit on a landscape phone
+     without an in-sheet scroll that hides Ledger/Settings below the fold. */
+  .sheet-compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem;
+  }
+  .sheet-compact .sheet-row {
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+  .sheet-compact .sheet-ico {
+    height: 2rem;
+    width: 2rem;
+  }
+  .sheet-compact .sheet-sub {
+    display: none;
+  }
+}
+
+/* Floating table reactions — drift up and fade over the felt. */
+@keyframes floatEmoji {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-12px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-170px) scale(1);
+  }
+}
+.float-emoji {
+  animation: floatEmoji 2.2s ease-out forwards;
 }
 
 /* Bottom-sheet slide-up (M2 "More" menu). */
@@ -201,7 +315,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .deal-card,
-  .float-card {
+  .float-card,
+  .float-emoji {
     animation: none;
     opacity: 1;
   }

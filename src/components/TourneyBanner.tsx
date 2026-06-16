@@ -92,7 +92,7 @@ export function TourneyResults({ tourney, onClose }: { tourney: TourneyState; on
         </div>
         <button
           onClick={onClose}
-          className="mt-5 w-full rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white hover:bg-emerald-500"
+          className="mt-5 w-full rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-600"
         >
           Close
         </button>

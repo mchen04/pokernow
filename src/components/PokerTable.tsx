@@ -2,8 +2,10 @@ import type { PublicTableState } from "@common/protocol";
 import { fmtChips } from "@common/money";
 import { PlayingCard } from "./PlayingCard";
 import { Seat } from "./Seat";
+import { BetChips, FloatingReactions, ShowdownResultBanner } from "./PokerTableWidgets";
 import { seatPositions } from "../lib/layout";
 import { useFitSize } from "../lib/useFitSize";
+import { usePrefs } from "../lib/prefs";
 
 // Half-width (design px) of the widest seat block when a camera tile is shown:
 // [video ~104 | gap | right column ~128] ≈ 236px wide, where the right column is
@@ -11,16 +13,11 @@ import { useFitSize } from "../lib/useFitSize";
 // position, so we clamp that center inward by this much (+margin) so the block
 // never clips the felt's overflow-hidden edge.
 const VIDEO_HALF_BLOCK = 122;
-
-function BetChips({ amount }: { amount: number }) {
-  if (amount <= 0) return null;
-  return (
-    <div className="flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 shadow ring-1 ring-white/10">
-      <span className="h-3 w-3 rounded-full bg-amber-400 ring-1 ring-amber-200" />
-      <span className="text-[12px] font-bold text-white tabular-nums">{fmtChips(amount)}</span>
-    </div>
-  );
-}
+// Half the plain (no-video) seat block: the pod is ~128px wide and the cards
+// above it can be a touch wider, so ~72px keeps the whole block off the felt's
+// overflow-hidden edge. On the narrow PORTRAIT box this is what stops side seats
+// from clipping off the screen edge on a phone.
+const POD_HALF_BLOCK = 72;
 
 export function PokerTable({
   state,
@@ -36,21 +33,33 @@ export function PokerTable({
   remote?: Record<string, MediaStream>;
 }) {
   const positions = seatPositions(state.config.maxSeats, state.yourSeat);
-  const betsOnTable = state.seats.reduce((s, x) => s + x.betThisStreet, 0);
-  const centerPot = state.totalPot - betsOnTable;
   const { ref, fit } = useFitSize();
+  const { hud } = usePrefs();
 
-  // Clamp a video seat's center inward so the wider [video | pod | cards] block
-  // stays within the felt (which clips at its overflow-hidden edge).
-  const clampVideoX = (xPct: number): number => {
+  // Optional pro HUD: a compact VPIP/PFR read beside each occupied seat, computed
+  // from the same per-player stats that power the Stats modal. Passed as a string
+  // so the memoized Seat only re-renders when the value actually changes.
+  const statByPid = new Map(state.stats.map((s) => [s.playerId, s]));
+  const hudFor = (playerId: string | null): string | null => {
+    if (!hud || !playerId) return null;
+    const s = statByPid.get(playerId);
+    return s && s.handsPlayed > 0 ? `${s.vpip}/${s.pfr}/${s.threeBet}` : null;
+  };
+
+  // Clamp a seat's center inward so its block (pod + cards, wider when a camera
+  // tile is shown) stays within the felt, which clips at its overflow-hidden
+  // edge. Applied to every seat — without it the side seats clip off the screen
+  // edge on the narrow portrait (phone) box.
+  const clampX = (xPct: number, half: number): number => {
     const w = fit.base.w;
     const px = (xPct / 100) * w;
-    const c = Math.max(VIDEO_HALF_BLOCK + 6, Math.min(w - VIDEO_HALF_BLOCK - 6, px));
+    const c = Math.max(half + 6, Math.min(w - half - 6, px));
     return (c / w) * 100;
   };
 
   return (
-    <div ref={ref} className="flex h-full w-full items-center justify-center overflow-hidden">
+    <div ref={ref} className="relative flex h-full w-full items-center justify-center overflow-hidden">
+      <FloatingReactions chat={state.chat} />
       <div
         className="relative shrink-0"
         style={{
@@ -59,6 +68,10 @@ export function PokerTable({
           transform: fit.scale ? `translateY(${fit.offsetY}px) scale(${fit.scale})` : undefined,
           transformOrigin: "center center",
           visibility: fit.scale ? "visible" : "hidden",
+          // The dock sizes to its content (tall on your turn, compact otherwise),
+          // so the felt re-fits as the turn enters/leaves. Glide the rescale
+          // instead of snapping, so reclaiming the space reads as smooth.
+          transition: "transform 0.18s ease-out",
           // published for the seat label legibility floor (M3)
           ["--table-scale" as string]: fit.scale || 1,
         }}
@@ -74,11 +87,15 @@ export function PokerTable({
         <div className="absolute inset-[7%] rounded-[50%] border border-white/[0.08]" />
       </div>
 
-      {/* center: pot + board */}
+      <ShowdownResultBanner state={state} />
+
+      {/* center: pot + board. One clear "Pot" figure = the TOTAL at stake (chips
+          already collected in the middle PLUS the current street's bets shown in
+          front of each seat), so a beginner never sees two competing numbers. */}
       <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
-        {centerPot > 0 && (
-          <div className="rounded-full bg-black/50 px-3 py-1 text-sm font-bold text-white shadow ring-1 ring-white/10">
-            Pot {fmtChips(centerPot)}
+        {state.totalPot > 0 && (
+          <div className="rounded-full bg-black/65 px-4 py-1 text-base font-extrabold text-white shadow ring-1 ring-white/15">
+            Pot {fmtChips(state.totalPot)}
           </div>
         )}
         <div className="flex min-h-[82px] flex-col items-center gap-1.5">
@@ -94,9 +111,6 @@ export function PokerTable({
             </div>
           ))}
         </div>
-        {state.totalPot > 0 && (
-          <div className="text-xs text-white/60">Total pot {fmtChips(state.totalPot)}</div>
-        )}
       </div>
 
       {/* seats + bets */}
@@ -105,7 +119,7 @@ export function PokerTable({
         const isHero = state.yourSeat === p.seat;
         const stream = isHero ? localStream ?? null : seat.playerId ? remote?.[seat.playerId] ?? null : null;
         const hasVideo = !!stream && seat.camOn && stream.getVideoTracks().length > 0;
-        const x = hasVideo ? clampVideoX(p.x) : p.x;
+        const x = clampX(p.x, hasVideo ? VIDEO_HALF_BLOCK : POD_HALF_BLOCK);
         return (
           <div key={p.seat}>
             <div
@@ -120,6 +134,7 @@ export function PokerTable({
                 actionTimeSec={state.config.actionTimeSec}
                 onSit={onSit}
                 stream={stream}
+                hudText={hudFor(seat.playerId)}
               />
             </div>
             {seat.betThisStreet > 0 && (

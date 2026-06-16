@@ -31,6 +31,8 @@ export {
   Copy,
   Check,
   Play, // start game
+  HelpCircle, // how-to-play / hand rankings
+  BarChart3, // HUD stats overlay toggle
 } from "lucide-react";
 
 import type { SVGProps } from "react";

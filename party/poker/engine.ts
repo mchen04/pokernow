@@ -47,6 +47,8 @@ import {
 import { computeEquity, mulberry32 } from "../../common/equity";
 import { freshShuffledDeck } from "./deck";
 
+export const DISCONNECTED_ACTION_GRACE_MS = 3000;
+
 export interface Seat {
   index: number;
   playerId: string;
@@ -491,7 +493,9 @@ export class PokerEngine {
 
   setConnected(playerId: string, connected: boolean) {
     const s = this.seatOf(playerId);
-    if (s) s.connected = connected;
+    if (!s) return;
+    s.connected = connected;
+    if (!connected && s.index === this.toActSeat) this.shortenDisconnectedActionClock();
   }
 
   isHost(playerId: string): boolean {
@@ -1526,6 +1530,10 @@ export class PokerEngine {
     const contribs = this.occupied()
       .filter((s) => s.committed > 0)
       .map((s) => ({ seat: s.index, amount: s.committed, folded: s.folded }));
+    return this.computePotsFrom(contribs);
+  }
+
+  private computePotsFrom(contribs: { seat: number; amount: number; folded: boolean }[]): Pot[] {
     if (contribs.length === 0) return [];
     const levels = [...new Set(contribs.map((c) => c.amount))].sort((a, b) => a - b);
     const pots: Pot[] = [];
@@ -1552,6 +1560,22 @@ export class PokerEngine {
       }
     }
     return merged;
+  }
+
+  private callPotOddsPct(s: Seat): number | null {
+    const call = Math.min(Math.max(0, this.currentBet - s.betThisStreet), s.stack);
+    if (call <= 0) return null;
+    const contribs = this.occupied()
+      .map((seat) => ({
+        seat: seat.index,
+        amount: seat.committed + (seat.index === s.index ? call : 0),
+        folded: seat.folded,
+      }))
+      .filter((c) => c.amount > 0);
+    const winnable = this.computePotsFrom(contribs)
+      .filter((pot) => pot.eligible.includes(s.index))
+      .reduce((sum, pot) => sum + pot.amount, 0);
+    return winnable > 0 ? Math.round((call / winnable) * 100) : null;
   }
 
   // The seat's hole cards for evaluation — falls back to lastHole so showdown
@@ -1653,7 +1677,7 @@ export class PokerEngine {
     // log results
     for (const [seatIdx, amount] of winnings) {
       const s = this.seats[seatIdx]!;
-      const label = s.revealed ? ` with ${this.bestHigh(s, boards[0]).label}` : "";
+      const label = s.revealed && boards.length === 1 ? ` with ${this.bestHigh(s, boards[0]).label}` : "";
       this.addLog(`${s.name} wins ${amount}${label}`);
     }
 
@@ -1790,6 +1814,14 @@ export class PokerEngine {
   // ── timers ─────────────────────────────────────────────────────────────────
   private resetClock() {
     this.actionDeadline = this.now() + this.config.actionTimeSec * 1000;
+    this.shortenDisconnectedActionClock();
+  }
+
+  private shortenDisconnectedActionClock() {
+    if (this.phase !== "hand" || this.toActSeat === null || this.actionDeadline === null) return;
+    const s = this.seats[this.toActSeat];
+    if (!s || s.connected) return;
+    this.actionDeadline = Math.min(this.actionDeadline, this.now() + DISCONNECTED_ACTION_GRACE_MS);
   }
 
   timeoutCurrent(): boolean {
@@ -1800,6 +1832,7 @@ export class PokerEngine {
     if (s.timeBankMs > 0 && this.config.timeBankSec > 0) {
       s.timeBankMs = 0;
       this.actionDeadline = this.now() + this.config.timeBankSec * 1000;
+      this.shortenDisconnectedActionClock();
       this.addLog(`${s.name} is into the time bank`);
       return true;
     }
@@ -1873,7 +1906,7 @@ export class PokerEngine {
     const ledger = this.ledgerRows();
     const stats = this.statsRows(ledger);
     const seatHandLabels: (string | null)[] = new Array(this.config.maxSeats).fill(null);
-    if (this.boards[0].length === 5) {
+    if (this.boards.length === 1 && this.boards[0].length === 5) {
       for (let i = 0; i < this.config.maxSeats; i++) {
         const s = this.seats[i];
         if (s && s.revealed) seatHandLabels[i] = this.bestHigh(s, this.boards[0]).label;
@@ -1955,11 +1988,13 @@ export class PokerEngine {
 
     let legalActions: LegalAction[] = [];
     let callAmount = 0;
+    let callPotOddsPct: number | null = null;
     let minRaiseTo = 0;
     let maxRaiseTo = 0;
     if (viewerSeat && this.toActSeat === viewerSeat.index && this.phase === "hand") {
       legalActions = this.legalActionsFor(viewerSeat);
       callAmount = Math.max(0, this.currentBet - viewerSeat.betThisStreet);
+      callPotOddsPct = this.callPotOddsPct(viewerSeat);
       minRaiseTo = this.minRaiseTo(viewerSeat);
       maxRaiseTo = this.maxRaiseTo(viewerSeat);
     }
@@ -1985,6 +2020,7 @@ export class PokerEngine {
       actionDeadline: this.actionDeadline,
       legalActions,
       callAmount,
+      callPotOddsPct,
       minRaiseTo,
       maxRaiseTo,
       potForBet: shared.totalPot,

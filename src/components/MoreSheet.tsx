@@ -39,7 +39,7 @@ export function MoreSheet({
             <X size={20} />
           </button>
         </div>
-        <div className="px-2 pb-2">
+        <div className="sheet-compact px-2 pb-2">
           {items.map((it, i) => (
             <button
               key={i}
@@ -47,10 +47,10 @@ export function MoreSheet({
                 it.onClick();
                 if (!it.keepOpen) onClose();
               }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+              className="sheet-row flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
             >
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                className={`sheet-ico flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                   it.active ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-white/80"
                 }`}
               >
@@ -60,7 +60,7 @@ export function MoreSheet({
                 <span className={`block text-[15px] font-semibold ${it.active ? "text-emerald-300" : "text-white"}`}>
                   {it.label}
                 </span>
-                {it.sub && <span className="block text-xs text-white/50">{it.sub}</span>}
+                {it.sub && <span className="sheet-sub block text-xs text-white/50">{it.sub}</span>}
               </span>
             </button>
           ))}
