@@ -153,6 +153,106 @@ test("call pot odds ignore side pots the caller cannot win", () => {
   assert.equal(snap.callPotOddsPct, 50, "10 to call for the 20-chip main pot");
 });
 
+test("cash sit out skips future deals until the player sits back in", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 3, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  e.sit("c", "Cara", 2, 100);
+  assert.equal(e.startHand(), null);
+  assert.equal(e.seats[2]!.inHand, true);
+
+  assert.equal(e.sitOut("c"), null);
+  assert.equal(e.seats[2]!.sittingOut, true);
+  assert.equal(e.seats[2]!.inHand, true, "sit-out request does not remove a live hand");
+
+  let snap = e.snapshotFor("a");
+  assert.equal(e.act("a", "fold", undefined, snap.actionSeq), null);
+  snap = e.snapshotFor("b");
+  assert.equal(e.act("b", "fold", undefined, snap.actionSeq), null);
+  assert.equal(e.phase, "showdown");
+
+  e.finishHand();
+  assert.equal(e.startHand(), null);
+  assert.equal(e.seats[2]!.inHand, false, "sitting-out player is skipped on the next deal");
+  assert.equal(e.seats[0]!.inHand, true);
+  assert.equal(e.seats[1]!.inHand, true);
+
+  assert.equal(e.sitIn("c"), null);
+  assert.equal(e.seats[2]!.sittingOut, false);
+  snap = e.snapshotFor(e.seats[e.toActSeat!]!.playerId);
+  assert.equal(e.act(e.seats[e.toActSeat!]!.playerId, "fold", undefined, snap.actionSeq), null);
+  e.finishHand();
+  assert.equal(e.startHand(), null);
+  assert.equal(e.seats[2]!.inHand, true, "player is dealt again after sitting back in");
+});
+
+test("cash queued sit out can be canceled before the next deal", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 3, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  e.sit("c", "Cara", 2, 100);
+  assert.equal(e.startHand(), null);
+
+  assert.equal(e.sitOut("c"), null);
+  assert.equal(e.seats[2]!.sittingOut, true);
+  assert.equal(e.sitIn("c"), null);
+  assert.equal(e.seats[2]!.sittingOut, false);
+
+  let snap = e.snapshotFor("a");
+  assert.equal(e.act("a", "fold", undefined, snap.actionSeq), null);
+  snap = e.snapshotFor("b");
+  assert.equal(e.act("b", "fold", undefined, snap.actionSeq), null);
+  assert.equal(e.phase, "showdown");
+
+  e.finishHand();
+  assert.equal(e.startHand(), null);
+  assert.equal(e.seats[2]!.inHand, true, "canceled sit-out is dealt into the next hand");
+});
+
+test("cash sitting-out players are not tournament registrants", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 4 }));
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  e.sit("c", "Cara", 2, 100);
+  assert.equal(e.sitOut("c"), null);
+
+  assert.deepEqual(
+    e.tournamentEntrants().map((p) => p.playerId),
+    ["a", "b"]
+  );
+  assert.deepEqual(
+    e.occupiedPlayers().map((p) => p.playerId),
+    ["a", "b", "c"],
+    "cash table occupancy still keeps the reserved seat"
+  );
+});
+
+test("SNG finish ignores cash seats excluded by sitting out", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 3, tourneyStartingStack: 100 }));
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  e.sit("c", "Cara", 2, 100);
+  assert.equal(e.sitOut("c"), null);
+
+  assert.equal(e.startTournament("a", 0), null);
+  let snap = e.snapshotFor("a");
+  assert.equal(snap.tourney?.playersLeft, 2);
+  assert.equal(snap.tourney?.prizePool, 200);
+  assert.equal(e.seats[2]!.stack, 100, "excluded cash stack stays reserved");
+  assert.equal(e.seats[2]!.sittingOut, true);
+
+  e.seats[1]!.stack = 0;
+  e.finishHand();
+  snap = e.snapshotFor("a");
+  assert.equal(snap.tourney?.finished, true);
+  assert.equal(snap.tourney?.active, false);
+  assert.equal(snap.tourney?.playersLeft, 1);
+  assert.deepEqual(
+    snap.tourney?.standings.map((s) => s.name),
+    ["Alice", "Bob"]
+  );
+});
+
 test("min-raise is enforced; stale seq and out-of-turn are rejected", () => {
   const e = new PokerEngine("r", cfg());
   e.sit("a", "A", 0, 1000);

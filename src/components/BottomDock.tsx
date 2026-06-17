@@ -1,7 +1,7 @@
 import type { ClientMessage, PublicSeat, PublicTableState } from "@common/protocol";
 import { ActionBar } from "./ActionBar";
 import { heroHandLabel } from "../lib/handHint";
-import { CircleDollarSign, Eye, Play, Rabbit, Trophy } from "./Icon";
+import { CircleDollarSign, CirclePlay, Eye, Play, Rabbit, Trophy } from "./Icon";
 
 // One persistent bottom dock — the only layer holding turn controls (M1). It is a
 // normal flex child pinned at the bottom of the 100dvh shell (not a floating band
@@ -41,6 +41,8 @@ export function BottomDock({
   // Busted in a cash game: stack is gone AND the hand is over (not mid all-in),
   // so re-buying is what brings the player back. Tournaments have no rebuys.
   const busted = !!me && me.stack <= 0 && !me.allIn && !inTourney;
+  const sitOutQueued = !!me && me.sittingOut && me.inHand && !busted && !inTourney;
+  const sittingOut = !!me && me.sittingOut && !me.inHand && !busted && !inTourney;
   const canStart = isHost && state.canStart && !state.handInProgress;
   // After a hand, anyone who was dealt in (incl. a folder) can voluntarily show.
   const canShow =
@@ -79,10 +81,8 @@ export function BottomDock({
         </div>
       )}
 
-      {/* Content-sized body: a tall betting bar on the hero's turn, a compact
-          status row otherwise. The felt re-fits to the freed space with a smooth
-          transition (PokerTable), so short viewports get a bigger table whenever
-          it isn't the hero's turn. */}
+      {/* The body reserves betting-control height even for status-only states, so
+          the felt fit stays stable as action moves around the table. */}
       <div className="dock-body mx-auto flex w-full max-w-3xl flex-col justify-center lg:max-w-4xl xl:max-w-5xl">
         {myTurn && !suppressActionBar ? (
           <ActionBar state={state} send={send} now={now} />
@@ -93,11 +93,31 @@ export function BottomDock({
                 You&apos;re out of chips — re-buy to get back in the game.
               </p>
             ) : null}
+            {sittingOut ? (
+              <p className="text-center text-xs text-amber-300/90">
+                You&apos;re sitting out — use I&apos;m back to be dealt in again.
+              </p>
+            ) : null}
+            {sitOutQueued ? (
+              <p className="text-center text-xs text-amber-300/90">
+                You&apos;ll sit out after this hand.
+              </p>
+            ) : null}
 
             <div className="flex flex-wrap items-center justify-center gap-2">
               {busted && (
                 <button onClick={onRebuy} className={`${PRIMARY} bg-emerald-700 hover:bg-emerald-600`}>
                   <CircleDollarSign size={18} /> Re-buy &amp; sit back in
+                </button>
+              )}
+              {sittingOut && (
+                <button onClick={() => send({ type: "sitIn" })} className={`${PRIMARY} bg-emerald-700 hover:bg-emerald-600`}>
+                  <CirclePlay size={18} /> I&apos;m back
+                </button>
+              )}
+              {sitOutQueued && (
+                <button onClick={() => send({ type: "sitIn" })} className={`${PRIMARY} bg-amber-600 text-slate-950 hover:bg-amber-500`}>
+                  <CirclePlay size={18} /> Cancel sit-out
                 </button>
               )}
 
@@ -150,7 +170,7 @@ export function BottomDock({
                 </span>
               )}
               {/* keep the band informative while waiting on another player */}
-              {waitingName && state.handInProgress && !busted && !canShow && (
+              {waitingName && state.handInProgress && !busted && !sittingOut && !sitOutQueued && !canShow && (
                 <span className="inline-flex items-center gap-2 rounded-md bg-black/40 px-3 py-2 text-sm text-white/55">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
                   Waiting for {waitingName}…

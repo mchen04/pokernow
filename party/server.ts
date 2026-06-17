@@ -173,6 +173,12 @@ export default class PokerServer implements Party.Server {
       case "stand":
         if (pid()) e.stand(pid()!);
         break;
+      case "sitOut":
+        if (pid()) err = this.tournament ? "Sit-out is only available in cash games" : e.sitOut(pid()!);
+        break;
+      case "sitIn":
+        if (pid()) err = this.tournament ? "Tournament players rejoin automatically when connected" : e.sitIn(pid()!);
+        break;
       case "rebuy":
         if (pid()) err = e.rebuy(pid()!, asInt(msg.amount, 0));
         break;
@@ -206,7 +212,7 @@ export default class PokerServer implements Party.Server {
         break;
       case "startTournament":
         if (pid() && e.isHost(pid()!) && !this.tournament) {
-          const regs = e.occupiedPlayers();
+          const regs = e.tournamentEntrants();
           const cap = Math.max(2, Math.min(e.config.tourneyTableSize, 10));
           if (regs.length > cap) {
             // multi-table tournament: hand off to the coordinator

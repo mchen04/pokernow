@@ -79,7 +79,6 @@ interface SeatProps {
   actionTimeSec: number;
   onSit: (seatIndex: number) => void;
   stream?: MediaStream | null;
-  hudText?: string | null;
 }
 
 function SeatImpl({
@@ -90,7 +89,6 @@ function SeatImpl({
   actionTimeSec,
   onSit,
   stream,
-  hudText,
 }: SeatProps) {
   if (seat.empty) {
     return (
@@ -169,7 +167,11 @@ function SeatImpl({
             {fmtChips(seat.stack)}
           </span>
           {seat.allIn && <Badge className="bg-red-500 text-white">ALL IN</Badge>}
-          {seat.sittingOut && !seat.inHand && <span className="text-[11px] text-white/55">out</span>}
+          {!seat.connected ? (
+            <span className="text-[11px] font-semibold text-amber-200/85">away</span>
+          ) : (
+            seat.sittingOut && !seat.inHand && <span className="text-[11px] text-white/55">out</span>
+          )}
         </div>
       </div>
 
@@ -193,16 +195,6 @@ function SeatImpl({
       {seat.bounty && (
         <div className="absolute -top-2 -right-2">
           <Badge className="bg-yellow-400 text-slate-900">7-2</Badge>
-        </div>
-      )}
-
-      {/* optional pro HUD: VPIP / PFR % beside the seat */}
-      {hudText && !seat.bounty && (
-        <div
-          title="VPIP / PFR / 3-Bet %"
-          className="absolute -top-2 right-1 rounded bg-slate-950/90 px-1 text-[10px] font-bold leading-tight tabular-nums text-sky-300 ring-1 ring-white/15"
-        >
-          {hudText}
         </div>
       )}
 
@@ -270,8 +262,7 @@ function seatPropsEqual(a: SeatProps, b: SeatProps): boolean {
     a.actionDeadline === b.actionDeadline &&
     a.actionTimeSec === b.actionTimeSec &&
     a.onSit === b.onSit &&
-    a.stream === b.stream &&
-    a.hudText === b.hudText
+    a.stream === b.stream
   );
 }
 

@@ -37,7 +37,8 @@ import {
   Volume2,
   VolumeX,
   X,
-  BarChart3,
+  CirclePause,
+  CirclePlay,
 } from "../components/Icon";
 
 type CoveringOverlay =
@@ -143,7 +144,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   const [muted, setMutedState] = useState(isMuted());
   const [seenChat, setSeenChat] = useState(0);
   const widePanel = useMediaQuery("(min-width: 1280px)");
-  const { fourColor, setFourColor, hud, setHud } = usePrefs();
+  const { fourColor, setFourColor } = usePrefs();
   useSound(state);
 
   const policy = overlayPolicy(openOverlay, widePanel);
@@ -197,6 +198,19 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   const me = state.yourSeat !== null ? state.seats[state.yourSeat] : null;
   const isHost = state.hostId === playerId;
   const myTurn = !!me && state.toActSeat === state.yourSeat;
+  const canToggleSitOut = !!me && !state.tourney?.active && me.stack > 0;
+  const sitOutQueued = !!me?.sittingOut && !!me?.inHand;
+  const sitOutLabel = sitOutQueued
+    ? "Cancel sit-out"
+    : me?.sittingOut
+      ? "I'm back"
+      : me?.inHand
+        ? "Sit out next hand"
+        : "Sit out";
+  const toggleSitOut = () => {
+    if (!me) return;
+    send({ type: me.sittingOut ? "sitIn" : "sitOut" });
+  };
 
   const copyLink = () => {
     navigator.clipboard?.writeText(window.location.href);
@@ -248,14 +262,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       keepOpen: true,
     },
     {
-      icon: <BarChart3 size={20} />,
-      label: hud ? "Stats HUD on" : "Stats HUD off",
-      sub: "VPIP/PFR beside seats",
-      onClick: () => setHud(!hud),
-      active: hud,
-      keepOpen: true,
-    },
-    {
       icon: rtc.micOn ? <Mic size={20} /> : <MicOff size={20} />,
       label: rtc.micOn ? "Leave voice" : "Join voice",
       sub: "Talk with the table",
@@ -283,6 +289,22 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       sub: "Hand log and table chat",
       onClick: () => setOpenOverlay({ type: "chat" }),
     },
+    ...(canToggleSitOut
+      ? [
+          {
+            icon: me?.sittingOut ? <CirclePlay size={20} /> : <CirclePause size={20} />,
+            label: sitOutLabel,
+            sub: sitOutQueued
+              ? "Stay in future hands"
+              : me?.sittingOut
+                ? "Return on the next deal"
+                : "Keep your seat, skip future hands",
+            onClick: toggleSitOut,
+            active: me?.sittingOut,
+            keepOpen: true,
+          },
+        ]
+      : []),
     ...(isHost
       ? [
           {
@@ -369,13 +391,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
                 <Palette size={18} />
               </IconBtn>
               <IconBtn
-                onClick={() => setHud(!hud)}
-                label={hud ? "Hide stats HUD" : "Show stats HUD (VPIP/PFR)"}
-                active={hud}
-              >
-                <BarChart3 size={18} />
-              </IconBtn>
-              <IconBtn
                 onClick={() => rtc.toggleMic()}
                 label={rtc.micOn ? "Leave voice" : "Join voice chat"}
                 active={rtc.micOn}
@@ -424,12 +439,28 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
 
           <div className="pointer-events-none absolute left-2 top-2 z-20 flex flex-col gap-1.5">
             {me && (
-              <button
-                onClick={() => send({ type: "stand" })}
-                className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
-              >
-                <LogOut size={15} /> Stand up
-              </button>
+              <>
+                {canToggleSitOut && (
+                  <button
+                    onClick={toggleSitOut}
+                    className={`touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition active:scale-[.97] ${
+                      me.sittingOut
+                        ? sitOutQueued
+                          ? "bg-amber-700/85 text-amber-50 ring-amber-300/20 hover:bg-amber-600"
+                          : "bg-emerald-800/85 text-emerald-50 ring-emerald-300/20 hover:bg-emerald-700"
+                        : "bg-slate-900/80 text-white/90 ring-white/10 hover:bg-slate-800"
+                    }`}
+                  >
+                    {me.sittingOut ? <CirclePlay size={15} /> : <CirclePause size={15} />} {sitOutLabel}
+                  </button>
+                )}
+                <button
+                  onClick={() => send({ type: "stand" })}
+                  className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
+                >
+                  <LogOut size={15} /> Stand up
+                </button>
+              </>
             )}
             <button
               onClick={leaveTable}

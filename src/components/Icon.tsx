@@ -27,12 +27,13 @@ export {
   UserX, // kick (host moderation)
   Timer, // action clock / add time
   CircleDollarSign, // chips / rebuy
+  CirclePause, // sit out
+  CirclePlay, // sit back in
   MoreHorizontal, // "More" overflow menu
   Copy,
   Check,
   Play, // start game
   HelpCircle, // how-to-play / hand rankings
-  BarChart3, // HUD stats overlay toggle
 } from "lucide-react";
 
 import type { SVGProps } from "react";

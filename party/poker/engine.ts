@@ -210,6 +210,7 @@ export class PokerEngine {
     levelEndsAt: number | null;
     startingStack: number;
     entrants: number;
+    entrantIds: Set<string>;
     eliminated: { playerId: string; name: string; place: number }[];
     finished: boolean;
     standings: TourneyStanding[];
@@ -612,6 +613,12 @@ export class PokerEngine {
     return this.occupied().map((s) => ({ playerId: s.playerId, name: s.name, stack: s.stack }));
   }
 
+  tournamentEntrants(): { playerId: string; name: string; stack: number }[] {
+    return this.occupied()
+      .filter((s) => !s.sittingOut && s.stack > 0)
+      .map((s) => ({ playerId: s.playerId, name: s.name, stack: s.stack }));
+  }
+
   // total chips at this table including chips committed to the current pot
   chipsInPlay(): number {
     return this.occupied().reduce((sum, s) => sum + s.stack + s.committed, 0);
@@ -655,6 +662,28 @@ export class PokerEngine {
     // moment they re-buy.
     if (before <= 0) s.sittingOut = false;
     this.addLog(`${s.name} added ${delta} in chips`);
+    return null;
+  }
+
+  sitOut(playerId: string): string | null {
+    const s = this.seatOf(playerId);
+    if (!s) return "Not seated";
+    if (this.tourney?.active) return "Sit-out is only available in cash games";
+    if (s.stack <= 0) return "Re-buy to sit back in";
+    if (s.sittingOut) return null;
+    s.sittingOut = true;
+    this.addLog(s.inHand && this.phase === "hand" ? `${s.name} will sit out after this hand` : `${s.name} is sitting out`);
+    return null;
+  }
+
+  sitIn(playerId: string): string | null {
+    const s = this.seatOf(playerId);
+    if (!s) return "Not seated";
+    if (this.tourney?.active) return "Tournament players rejoin automatically when connected";
+    if (s.stack <= 0) return "Re-buy to sit back in";
+    if (!s.sittingOut) return null;
+    s.sittingOut = false;
+    this.addLog(`${s.name} is back`);
     return null;
   }
 
@@ -717,12 +746,18 @@ export class PokerEngine {
   startTournament(host: string, now: number): string | null {
     if (!this.isHost(host)) return "Only the host can start the tournament";
     if (this.phase === "hand") return "Finish the current hand first";
-    const entrants = this.occupied().filter((s) => !s.sittingOut);
+    const entrants = this.occupied().filter((s) => !s.sittingOut && s.stack > 0);
     if (entrants.length < 2) return "Need at least two registered players";
+    const entrantIds = new Set(entrants.map((s) => s.playerId));
     const startingStack = this.config.tourneyStartingStack;
-    for (const s of entrants) {
-      s.stack = startingStack;
-      s.sittingOut = false;
+    for (const s of this.occupied()) {
+      if (entrantIds.has(s.playerId)) {
+        s.stack = startingStack;
+        s.sittingOut = false;
+      } else {
+        s.sittingOut = true;
+        s.inHand = false;
+      }
     }
     this.tourney = {
       active: true,
@@ -730,6 +765,7 @@ export class PokerEngine {
       levelEndsAt: now + this.config.tourneyLevelSec * 1000,
       startingStack,
       entrants: entrants.length,
+      entrantIds,
       eliminated: [],
       finished: false,
       standings: [],
@@ -754,9 +790,10 @@ export class PokerEngine {
   // After a hand, eliminate busted players and finish the tournament if one left.
   private processEliminations() {
     if (!this.tourney?.active || this.tourney.finished) return;
-    const alive = this.occupied().filter((s) => s.stack > 0);
+    const isEntrant = (s: Seat) => this.tourney!.entrantIds.has(s.playerId);
+    const alive = this.occupied().filter((s) => isEntrant(s) && s.stack > 0);
     const busted = this.occupied().filter(
-      (s) => s.stack <= 0 && !this.tourney!.eliminated.some((e) => e.playerId === s.playerId)
+      (s) => isEntrant(s) && s.stack <= 0 && !this.tourney!.eliminated.some((e) => e.playerId === s.playerId)
     );
     // place: players still alive (incl. those busting now) determine finishing order
     for (const s of busted) {
@@ -805,7 +842,9 @@ export class PokerEngine {
   private tourneyState(): TourneyState | null {
     if (!this.tourney) return null;
     const b = this.effectiveBlinds();
-    const playersLeft = this.occupied().filter((s) => s.stack > 0).length;
+    const playersLeft = this.occupied().filter(
+      (s) => this.tourney!.entrantIds.has(s.playerId) && s.stack > 0
+    ).length;
     return {
       active: this.tourney.active,
       level: this.tourney.level + 1,

@@ -47,13 +47,11 @@ body {
   padding-right: max(0.75rem, env(safe-area-inset-right));
 }
 
-/* The dock sizes to its content: a tall betting bar on the hero's turn, a
-   compact status row the rest of the time. The felt re-fits to the reclaimed
-   space with a smooth transition (see PokerTable), so swapping never jumps —
-   this gives short viewports (laptop, tablet, landscape phone) a much larger
-   table whenever it isn't the hero's turn. */
+/* Reserve the full betting-bar height even when the player is only waiting.
+   The felt/table fit stays stable as turns pass instead of zooming in and out
+   when the larger betting controls appear. */
 .dock-body {
-  min-height: 2.75rem;
+  min-height: 11.5rem;
 }
 .bet-preset {
   height: 2.25rem; /* 36px */
@@ -84,6 +82,9 @@ body {
   .bet-preset {
     height: 2rem;
     min-height: 2rem;
+  }
+  .dock-body {
+    min-height: 8.25rem;
   }
 }
 

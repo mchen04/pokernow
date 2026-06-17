@@ -5,7 +5,6 @@ import { Seat } from "./Seat";
 import { BetChips, FloatingReactions, ShowdownResultBanner } from "./PokerTableWidgets";
 import { seatPositions } from "../lib/layout";
 import { useFitSize } from "../lib/useFitSize";
-import { usePrefs } from "../lib/prefs";
 
 // Half-width (design px) of the widest seat block when a camera tile is shown:
 // [video ~104 | gap | right column ~128] ≈ 236px wide, where the right column is
@@ -34,17 +33,6 @@ export function PokerTable({
 }) {
   const positions = seatPositions(state.config.maxSeats, state.yourSeat);
   const { ref, fit } = useFitSize();
-  const { hud } = usePrefs();
-
-  // Optional pro HUD: a compact VPIP/PFR read beside each occupied seat, computed
-  // from the same per-player stats that power the Stats modal. Passed as a string
-  // so the memoized Seat only re-renders when the value actually changes.
-  const statByPid = new Map(state.stats.map((s) => [s.playerId, s]));
-  const hudFor = (playerId: string | null): string | null => {
-    if (!hud || !playerId) return null;
-    const s = statByPid.get(playerId);
-    return s && s.handsPlayed > 0 ? `${s.vpip}/${s.pfr}/${s.threeBet}` : null;
-  };
 
   // Clamp a seat's center inward so its block (pod + cards, wider when a camera
   // tile is shown) stays within the felt, which clips at its overflow-hidden
@@ -68,9 +56,8 @@ export function PokerTable({
           transform: fit.scale ? `translateY(${fit.offsetY}px) scale(${fit.scale})` : undefined,
           transformOrigin: "center center",
           visibility: fit.scale ? "visible" : "hidden",
-          // The dock sizes to its content (tall on your turn, compact otherwise),
-          // so the felt re-fits as the turn enters/leaves. Glide the rescale
-          // instead of snapping, so reclaiming the space reads as smooth.
+          // Size changes now come from real viewport/panel changes, not turn
+          // controls; the dock reserves betting height even while waiting.
           transition: "transform 0.18s ease-out",
           // published for the seat label legibility floor (M3)
           ["--table-scale" as string]: fit.scale || 1,
@@ -134,7 +121,6 @@ export function PokerTable({
                 actionTimeSec={state.config.actionTimeSec}
                 onSit={onSit}
                 stream={stream}
-                hudText={hudFor(seat.playerId)}
               />
             </div>
             {seat.betThisStreet > 0 && (

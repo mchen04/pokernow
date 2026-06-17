@@ -15,6 +15,8 @@ export type ClientMessage =
   | { type: "rename"; name: string }
   | { type: "sit"; seat: number; buyIn: number }
   | { type: "stand" }
+  | { type: "sitOut" }
+  | { type: "sitIn" }
   | { type: "rebuy"; amount: number }
   | { type: "action"; action: PlayerActionType; amount?: number; seq: number }
   | { type: "startGame" }
