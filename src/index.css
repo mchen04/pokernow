@@ -63,6 +63,14 @@ body {
   .bet-preset {
     min-height: 44px;
   }
+  /* The 44px preset/action targets above make the live betting bar ~188px tall —
+     past the 11.5rem (184px) desktop reserve. Without a matching bump the dock
+     grows only on the acting player's turn, so the felt re-fit smaller during
+     betting and larger while waiting/joining. Reserve the taller bar here too so
+     the felt is sized to the betting stage in every stage and never shifts. */
+  .dock-body {
+    min-height: 12rem;
+  }
 }
 /* Landscape phone (very short): drop the tall slider thumb and the turn-info text
    line and shrink the presets, so the acting dock stays short and the felt keeps
