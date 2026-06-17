@@ -59,11 +59,16 @@ function overlayPolicy(overlay: CoveringOverlay | null, widePanel: boolean) {
       showFloatingActions: !widePanel,
     };
   }
-  const autoCloseOnTurn = overlay.type === "more";
+  // Everything else (sit / rebuy / settings / ledger / help / more) is a
+  // full-screen modal that already sits above the felt. The dock is hidden
+  // behind it, so don't relocate the betting controls to a floating top bar —
+  // that made the dock look like it jumped to the top of the screen when you
+  // opened the ledger or how-to-play. The modal is just a modal; nothing in the
+  // background changes. 'more' still auto-closes when it becomes your turn.
   return {
-    coversDock: true,
-    autoCloseOnTurn,
-    showFloatingActions: !autoCloseOnTurn,
+    coversDock: false,
+    autoCloseOnTurn: overlay.type === "more",
+    showFloatingActions: false,
   };
 }
 
