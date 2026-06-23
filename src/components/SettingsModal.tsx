@@ -83,11 +83,15 @@ export function SettingsModal({
   config,
   send,
   tourneyActive = false,
+  handInProgress = false,
+  settingsQueued = false,
   onClose,
 }: {
   config: TableConfig;
   send: (m: ClientMessage) => void;
   tourneyActive?: boolean;
+  handInProgress?: boolean;
+  settingsQueued?: boolean;
   onClose: () => void;
 }) {
   const [cfg, setCfg] = useState<TableConfig>(config);
@@ -202,12 +206,20 @@ export function SettingsModal({
           )}
         </div>
 
+        {(handInProgress || settingsQueued) && (
+          <div className="mx-5 mb-1 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            {settingsQueued
+              ? "New settings are queued — they take effect when the next hand is dealt."
+              : "A hand is in progress — saving will queue these for the next hand."}
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-3">
           <button onClick={onClose} className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600">
             Cancel
           </button>
           <button onClick={save} className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-600">
-            Save settings
+            {handInProgress ? "Queue for next hand" : "Save settings"}
           </button>
         </div>
       </div>

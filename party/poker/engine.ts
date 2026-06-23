@@ -189,6 +189,10 @@ export class PokerEngine {
   log: LogEntry[] = [];
   chat: ChatMessage[] = [];
   rabbitCards: Card[] | null = null;
+  // Settings the host changed mid-hand: held here and applied when the next hand
+  // is dealt, so adjusting blinds/options during a live hand queues instead of
+  // erroring. Null when there's nothing pending.
+  pendingConfig: TableConfig | null = null;
   handHistories: HandSummary[] = [];
   private ledgerMap = new Map<string, { name: string; buyIn: number; cashOut: number }>();
   private handStartStacks = new Map<number, number>();
@@ -714,16 +718,29 @@ export class PokerEngine {
 
   updateConfig(host: string, next: TableConfig): string | null {
     if (!this.isHost(host)) return "Only the host can change settings";
-    if (this.phase === "hand") return "Can't change settings mid-hand";
+    // A hand is in flight (dealing, running out, or showing down) — applying new
+    // settings now could change blinds/seat count mid-deal. Queue them and roll
+    // them in when the next hand starts instead of rejecting the change.
+    if (this.phase === "hand" || this.phase === "runout" || this.phase === "showdown") {
+      this.pendingConfig = next;
+      this.addLog(`Host queued new table settings (apply next hand)`);
+      return null;
+    }
+    this.pendingConfig = null;
+    this.applyConfig(next);
+    this.addLog(`Host updated table settings`);
+    return null;
+  }
+
+  // Swap in a new config and resize the seat array if maxSeats changed. Shared by
+  // the immediate path (between hands) and the queued path (applied at deal time).
+  private applyConfig(next: TableConfig) {
     this.config = next;
-    // grow/shrink seat array if maxSeats changed
     if (next.maxSeats !== this.seats.length) {
       const grown: (Seat | null)[] = new Array(next.maxSeats).fill(null);
       for (const s of this.occupied()) if (s.index < next.maxSeats) grown[s.index] = s;
       this.seats = grown;
     }
-    this.addLog(`Host updated table settings`);
-    return null;
   }
 
   // ── tournament (Sit & Go, G9) ──────────────────────────────────────────────
@@ -870,6 +887,13 @@ export class PokerEngine {
 
   startHand(): string | null {
     if (this.phase === "hand") return "Hand already in progress";
+    // Roll in any settings the host queued during the previous hand before we
+    // read blinds/seat count for this deal.
+    if (this.pendingConfig) {
+      this.applyConfig(this.pendingConfig);
+      this.pendingConfig = null;
+      this.addLog(`Queued table settings now in effect`);
+    }
     const ready = this.occupied().filter((s) => this.dealtIn(s));
     if (ready.length < 2) return "Need at least two players with chips";
 
@@ -1926,6 +1950,17 @@ export class PokerEngine {
     if (!cards || cards.length === 0) return "No cards to show";
     s.revealed = true;
     this.addLog(`${s.name} shows ${cards.map(cardCode).join(" ")}`);
+    // Between hands the summary for this hand was already captured (at finishHand)
+    // with this seat still hidden, so a voluntary show wouldn't survive into the
+    // saved hand history. Backfill the just-shown cards into that record so the
+    // reveal is durable in Ledger & history, not just on the live felt.
+    if (this.phase === "between") {
+      const summary = this.handHistories[this.handHistories.length - 1];
+      if (summary && summary.handNumber === this.handNumber) {
+        const row = summary.players.find((p) => p.seat === s.index);
+        if (row && !row.holeCards) row.holeCards = cards.slice();
+      }
+    }
     this.bumpSeq();
     return null;
   }
@@ -2069,6 +2104,7 @@ export class PokerEngine {
       paused: this.paused,
       seatedCount: shared.seatedCount,
       handInProgress: this.phase === "hand",
+      settingsQueued: this.pendingConfig !== null,
       actionSeq: this.actionSeq,
       rabbitAvailable:
         this.config.rabbitHunt &&

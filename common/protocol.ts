@@ -223,6 +223,7 @@ export interface PublicTableState {
   paused: boolean;
   seatedCount: number;
   handInProgress: boolean;
+  settingsQueued: boolean; // host changed settings mid-hand; they apply next hand
   actionSeq: number; // increments each time the action moves; guards stale acts
   rabbitAvailable: boolean;
   lastHandRabbit: Card[] | null; // revealed rabbit-hunt cards

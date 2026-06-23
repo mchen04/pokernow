@@ -543,6 +543,8 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
             config={state.config}
             send={send}
             tourneyActive={!!state.tourney?.active}
+            handInProgress={state.phase === "hand" || state.phase === "runout" || state.phase === "showdown"}
+            settingsQueued={state.settingsQueued}
             onClose={() => setOpenOverlay(null)}
           />
         )}

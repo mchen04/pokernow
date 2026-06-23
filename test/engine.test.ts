@@ -726,3 +726,59 @@ test("fuzz: random feature combos (straddle/bomb/RIT/double/ante/omaha) conserve
     }
   }
 });
+
+test("settings changed mid-hand are queued and applied on the next deal", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 2, bigBlind: 2, smallBlind: 1, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 1000);
+  e.sit("b", "Bob", 1, 1000);
+  e.hostId = "a";
+  assert.equal(e.startHand(), null);
+
+  // Mid-hand: updating settings should NOT error — it queues.
+  const next = cfg({ maxSeats: 2, bigBlind: 50, smallBlind: 25, timeBankSec: 0 });
+  assert.equal(e.updateConfig("a", next), null, "mid-hand update should be accepted (queued)");
+  assert.equal(e.config.bigBlind, 2, "live config unchanged while a hand is in progress");
+  assert.equal(e.pendingConfig?.bigBlind, 50, "new config held as pending");
+  assert.equal(e.snapshotFor("a").settingsQueued, true);
+
+  // Finish the hand and deal the next one — queued settings take effect.
+  let snap = e.snapshotFor("a");
+  e.act("a", "fold", undefined, snap.actionSeq);
+  e.finishHand();
+  assert.equal(e.startHand(), null);
+  assert.equal(e.config.bigBlind, 50, "queued big blind applied on next deal");
+  assert.equal(e.pendingConfig, null, "pending cleared after applying");
+  assert.equal(e.snapshotFor("a").settingsQueued, false);
+});
+
+test("settings change between hands applies immediately", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 2, bigBlind: 2, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 1000);
+  e.sit("b", "Bob", 1, 1000);
+  e.hostId = "a";
+  // lobby (no hand in progress) — applies right away
+  assert.equal(e.updateConfig("a", cfg({ maxSeats: 2, bigBlind: 10, timeBankSec: 0 })), null);
+  assert.equal(e.config.bigBlind, 10);
+  assert.equal(e.pendingConfig, null);
+});
+
+test("voluntary show during between-hands is recorded in hand history", () => {
+  const e = new PokerEngine("r", cfg({ maxSeats: 2, timeBankSec: 0 }));
+  e.sit("a", "Alice", 0, 100);
+  e.sit("b", "Bob", 1, 100);
+  e.startHand();
+  const snap = e.snapshotFor("a");
+  e.act("a", "fold", undefined, snap.actionSeq); // Bob wins by fold
+  e.finishHand(); // captures summary (Bob hidden), phase -> between
+  assert.equal(e.phase, "between");
+  // Bob voluntarily shows during the between window
+  assert.equal(e.showCards("b"), null);
+  // Other players see it live
+  const aSeesB = e.snapshotFor("a").seats.find((s) => s.playerId === "b");
+  assert.ok(aSeesB?.holeCards && aSeesB.holeCards.length === 2, "live reveal to others");
+  // And it persists into the saved hand history
+  const hist = e.getHistories();
+  const last = hist[hist.length - 1];
+  const bobRow = last.players.find((p) => p.name === "Bob");
+  assert.ok(bobRow?.holeCards && bobRow.holeCards.length === 2, "shown cards saved to history");
+});
