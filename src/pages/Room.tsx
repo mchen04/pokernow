@@ -143,6 +143,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   const active = state?.phase === "hand" || !!state?.tourney?.active;
   const now = useNow(active);
   const [resultsDismissed, setResultsDismissed] = useState(false);
+  const [inviteDismissed, setInviteDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [openOverlay, setOpenOverlay] = useState<CoveringOverlay | null>(null);
@@ -475,8 +476,15 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
             </button>
           </div>
 
-          {state.seatedCount <= 1 && !state.handInProgress && !state.tourney?.active && (
+          {state.seatedCount <= 1 && !state.handInProgress && !state.tourney?.active && !inviteDismissed && (
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex w-[min(86%,22rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-black/65 px-5 py-4 text-center shadow-xl ring-1 ring-white/10 backdrop-blur">
+              <button
+                onClick={() => setInviteDismissed(true)}
+                aria-label="Dismiss"
+                className="pointer-events-auto absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white active:scale-[.95]"
+              >
+                <X size={16} />
+              </button>
               <p className="text-base font-bold text-white">Invite friends to start</p>
               <p className="text-sm text-white/70">
                 Share the link or the code <span className="font-mono tracking-widest text-emerald-300">{roomId.toUpperCase()}</span> — they pick a name and sit down.
