@@ -49,11 +49,45 @@ export function FloatingReactions({ chat }: { chat: ChatMessage[] }) {
   );
 }
 
+// A single poker-chip disc: a colored body with a dashed edge ring and a darker
+// inner ring, so it reads as a real chip rather than a flat dot — even at ~14px.
+function Chip({ tone = "amber", size = 14 }: { tone?: "amber" | "red" | "blue"; size?: number }) {
+  const body =
+    tone === "red" ? "#e0556a" : tone === "blue" ? "#5aa0e0" : "#f2b73c";
+  const edge =
+    tone === "red" ? "#7a1f2c" : tone === "blue" ? "#1f4a7a" : "#9a6a12";
+  return (
+    <span
+      className="relative inline-block shrink-0 rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: body,
+        boxShadow: `0 1px 2px rgba(0,0,0,0.5), inset 0 0 0 2px ${edge}55`,
+        border: `1.5px dashed rgba(255,255,255,0.85)`,
+      }}
+    />
+  );
+}
+
+// A small stack of chips for the central pot — three offset discs.
+function PotChipStack() {
+  return (
+    <span className="relative inline-flex h-4 w-5 items-center">
+      <span className="absolute left-0 top-0.5"><Chip tone="blue" size={13} /></span>
+      <span className="absolute left-1"><Chip tone="red" size={13} /></span>
+      <span className="absolute left-2 top-0.5"><Chip tone="amber" size={13} /></span>
+    </span>
+  );
+}
+
+export { PotChipStack };
+
 export function BetChips({ amount }: { amount: number }) {
   if (amount <= 0) return null;
   return (
-    <div className="flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 shadow ring-1 ring-white/10">
-      <span className="h-3 w-3 rounded-full bg-amber-400 ring-1 ring-amber-200" />
+    <div data-ui="betchip" className="flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-0.5 shadow ring-1 ring-white/10">
+      <Chip tone="amber" size={14} />
       <span className="text-[12px] font-bold text-white tabular-nums">{fmtChips(amount)}</span>
     </div>
   );

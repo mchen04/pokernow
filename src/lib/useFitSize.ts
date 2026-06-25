@@ -13,7 +13,13 @@ export interface TableFit {
 }
 
 const LANDSCAPE = { w: 1000, h: 620 };
-const PORTRAIT = { w: 640, h: 900 };
+// Portrait box ratio is tuned so the table fills the *play* area (header + the
+// reserved betting bar) almost exactly on a 9:19.5 phone — width-bound, edge-to-
+// edge like PokerNow, with no dead side margins. It stays width-bound (constant
+// scale) even when the dock collapses between turns, so the table glides without
+// resizing; the extra height in that state reads as intentional ambient space
+// around a spotlit table, not a dead band.
+const PORTRAIT = { w: 640, h: 870 };
 // A flatter, wider design box for wide viewports (desktop, widescreen, landscape
 // tablet/phone). A tall 1.61 oval gets height-pinned on a 16:9/16:10 area and
 // leaves big horizontal dead margins; this ~2:1 box lets the felt grow to fill

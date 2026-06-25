@@ -91,13 +91,16 @@ function SeatImpl({
   stream,
 }: SeatProps) {
   if (seat.empty) {
+    // Empty seats recede: a faint ghosted ring so real players and the lit center
+    // pop, and the felt never reads as a wireframe of identical slots. They brighten
+    // to an inviting emerald on hover/focus (KR1/KR5).
     return (
       <button
         onClick={() => onSit(seat.index)}
-        className="group flex flex-col items-center justify-center w-[104px] h-[58px] rounded-full border border-dashed border-white/30 bg-black/40 hover:bg-emerald-600/25 hover:border-emerald-300/60 transition text-white/85 hover:text-white"
+        aria-label={`Sit in seat ${seat.index + 1}`}
+        className="group flex items-center justify-center w-[76px] h-[34px] rounded-full border border-dashed border-white/10 bg-white/[0.02] text-white/25 transition hover:border-emerald-300/60 hover:bg-emerald-600/20 hover:text-white focus-visible:text-white"
       >
-        <span className="text-xs font-bold">Sit here</span>
-        <span className="text-[11px] text-white/65">Seat {seat.index + 1}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide">Sit</span>
       </button>
     );
   }
@@ -118,7 +121,9 @@ function SeatImpl({
       : "ring-2 ring-amber-300"
     : seat.winner
       ? "ring-2 ring-yellow-300"
-      : "ring-1 ring-white/10";
+      : isHero
+        ? "ring-1 ring-emerald-400/45" // the hero's own seat is always findable
+        : "ring-1 ring-white/10";
 
   // Cards always sit ABOVE the pod (with or without a camera): in the no-video
   // layout the cards stack directly over the pod; in the video layout they form
@@ -127,12 +132,19 @@ function SeatImpl({
   // never shifts when cards appear/disappear (no-layout-shift invariant).
   const n = seat.holeCards?.length || (seat.hasCards ? seat.cardCount || 2 : 0);
   // The hero's own hole cards are the most important info on the table, so they
-  // get a size up (Hold'em) — never the smallest cards on the felt. 4-card Omaha
-  // stays smaller so the wider row still fits the pod.
-  const cardSize = isHero ? (n >= 4 ? "sm" : "md") : n >= 4 ? "xs" : "sm";
+  // are the BIGGEST cards on the felt (board-sized for Hold'em). 4-card Omaha
+  // stays a step smaller so the wider row still fits the pod.
+  const cardSize = isHero ? (n >= 4 ? "md" : "lg") : n >= 4 ? "xs" : "sm";
+  // On the hero's turn the hole cards lift and brighten — a clear, physical "act
+  // now" cue that draws the eye to your own hand (KR6), paired with the pod ring
+  // and timer. Slightly overlap the cards into the pod when lifted via -mb.
+  const heroLift = isHero && seat.isToAct;
   const cardsEl = (
     <div
-      className={`flex gap-0.5 z-10 mb-1 items-end ${isHero ? "min-h-[64px]" : "min-h-[42px]"} ${
+      data-ui="holecards"
+      className={`flex z-10 mb-2 items-end transition-transform duration-200 ${
+        isHero ? "gap-1 min-h-[84px]" : "gap-0.5 min-h-[42px]"
+      } ${heroLift ? "-translate-y-1.5 scale-[1.06] drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]" : ""} ${
         seat.winner ? "rounded-lg ring-2 ring-yellow-300/90" : ""
       }`}
     >
@@ -148,9 +160,16 @@ function SeatImpl({
 
   const podEl = (
     <div
-      className={`relative flex w-[128px] items-center gap-2 rounded-xl bg-slate-900/90 ${ringColor} px-2 py-1.5 shadow-lg ${
-        seat.folded ? "opacity-50" : ""
-      }`}
+      data-ui="pod"
+      className={`relative flex w-[128px] items-center gap-2 rounded-xl bg-[#15171b]/92 ${ringColor} px-2 py-1.5 ${
+        seat.isToAct
+          ? "shadow-[0_0_22px_rgba(252,211,77,0.5)]"
+          : seat.winner
+            ? "shadow-[0_0_22px_rgba(250,204,21,0.55)]"
+            : isHero
+              ? "shadow-[0_0_16px_rgba(16,185,129,0.28)]"
+              : "shadow-lg"
+      } ${seat.folded ? "opacity-50" : ""}`}
     >
       <Avatar name={seat.name} seed={seat.playerId ?? seat.name} />
       <div className="min-w-0 flex-1">
@@ -185,12 +204,21 @@ function SeatImpl({
         </div>
       )}
 
-      {/* badges */}
-      <div className="absolute -top-2 -left-2 flex gap-0.5">
-        {seat.isButton && <Badge title="Dealer button" className="bg-white text-slate-900">D</Badge>}
-        {seat.isSmallBlind && <Badge title="Small blind" className="bg-sky-700 text-white">SB</Badge>}
-        {seat.isBigBlind && <Badge title="Big blind" className="bg-indigo-700 text-white">BB</Badge>}
-        {seat.isStraddle && <Badge title="Straddle" className="bg-fuchsia-700 text-white">STR</Badge>}
+      {/* badges — dealer is a crisp white disc; blinds/straddle are matching tags.
+          Sit at the pod's top edge (not up into the card row above) so the hole
+          cards never clip them. */}
+      <div data-ui="badges" className="absolute -top-2 -left-2 flex items-center gap-0.5">
+        {seat.isButton && (
+          <span
+            title="Dealer button"
+            className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-white text-[12px] font-black text-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.5)] ring-1 ring-black/20"
+          >
+            D
+          </span>
+        )}
+        {seat.isSmallBlind && <Badge title="Small blind" className="bg-sky-600 text-white shadow ring-1 ring-black/20">SB</Badge>}
+        {seat.isBigBlind && <Badge title="Big blind" className="bg-indigo-600 text-white shadow ring-1 ring-black/20">BB</Badge>}
+        {seat.isStraddle && <Badge title="Straddle" className="bg-fuchsia-600 text-white shadow ring-1 ring-black/20">STR</Badge>}
       </div>
       {seat.bounty && (
         <div className="absolute -top-2 -right-2">
@@ -198,13 +226,16 @@ function SeatImpl({
         </div>
       )}
 
-      {/* status line below the pod: an explicit "TO ACT" cue (a non-color signal
-          for the active seat, paired with the ring + timer bar), or the win
-          amount, or the last action — plus, at showdown, the made-hand label so
-          everyone can see WHAT beat what without parsing the cards. */}
-      {(seat.isToAct || (seat.winner && seat.wonAmount > 0) || (seat.lastAction && seat.inHand) ||
-        (seat.revealed && seat.handLabel)) && (
-        <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-0.5">
+      {/* status line below the pod: a single short pill — the "TO ACT" cue, the
+          win amount, or the last action. Exactly one pill (never a stack), so it
+          always fits in the strip just below the pod without spilling past the
+          felt edge. The made-hand label is intentionally not shown per-seat (the
+          cards are face-up at showdown and the result banner names the winner).
+          Hidden on the hero's OWN seat: the hero sits at the very bottom of the
+          felt where a pill below the pod would spill into the gutter, and their
+          turn/action is already shown in the dock (action bar + ring + glow). */}
+      {!isHero && (seat.isToAct || (seat.winner && seat.wonAmount > 0) || (seat.lastAction && seat.inHand)) && (
+        <div data-ui="seatstatus" className="absolute top-full mt-1 left-1/2 flex -translate-x-1/2 flex-col items-center">
           {seat.isToAct ? (
             <span className="whitespace-nowrap rounded-full bg-amber-300 px-2 py-0.5 text-[12px] font-bold text-slate-900">
               TO ACT
@@ -218,11 +249,6 @@ function SeatImpl({
               {seat.lastAction}
             </span>
           ) : null}
-          {seat.revealed && seat.handLabel && (
-            <span className="whitespace-nowrap rounded-full bg-emerald-900/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 ring-1 ring-emerald-400/25">
-              {seat.handLabel}
-            </span>
-          )}
         </div>
       )}
     </div>

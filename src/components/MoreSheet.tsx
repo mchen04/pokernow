@@ -8,6 +8,7 @@ export interface SheetItem {
   onClick: () => void;
   active?: boolean;
   keepOpen?: boolean; // toggles stay open so the state change is visible
+  danger?: boolean; // seat-leaving actions (Stand up / Leave) read in warm red
 }
 
 // Thumb-reachable bottom sheet for the overflow controls banked off the top bar
@@ -51,13 +52,21 @@ export function MoreSheet({
             >
               <span
                 className={`sheet-ico flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                  it.active ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-white/80"
+                  it.active
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : it.danger
+                      ? "bg-rose-500/15 text-rose-300"
+                      : "bg-white/10 text-white/80"
                 }`}
               >
                 {it.icon}
               </span>
               <span className="min-w-0 flex-1">
-                <span className={`block text-[15px] font-semibold ${it.active ? "text-emerald-300" : "text-white"}`}>
+                <span
+                  className={`block text-[15px] font-semibold ${
+                    it.active ? "text-emerald-300" : it.danger ? "text-rose-200" : "text-white"
+                  }`}
+                >
                   {it.label}
                 </span>
                 {it.sub && <span className="sheet-sub block text-xs text-white/50">{it.sub}</span>}

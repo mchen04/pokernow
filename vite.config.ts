@@ -13,5 +13,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    host: true, // expose on the LAN so a phone on the same WiFi can test it
   },
 });

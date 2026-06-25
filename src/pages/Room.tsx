@@ -145,7 +145,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
   const [resultsDismissed, setResultsDismissed] = useState(false);
   const [inviteDismissed, setInviteDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [openOverlay, setOpenOverlay] = useState<CoveringOverlay | null>(null);
   const [muted, setMutedState] = useState(isMuted());
   const [seenChat, setSeenChat] = useState(0);
@@ -222,12 +221,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
     navigator.clipboard?.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  };
-
-  const copyCode = () => {
-    navigator.clipboard?.writeText(roomId.toUpperCase());
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 1500);
   };
 
   const toggleMute = () => {
@@ -321,10 +314,40 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
           },
         ]
       : []),
+    // Seat management lives here (PokerNow keeps these in the OPTIONS menu too)
+    // rather than floating over the felt, so the table stays clean and the
+    // controls never overlap an opponent's seat (KR5).
+    ...(me
+      ? [
+          {
+            icon: <LogOut size={20} />,
+            label: "Stand up",
+            sub: "Vacate your seat, keep watching",
+            onClick: () => send({ type: "stand" }),
+            danger: true,
+          },
+        ]
+      : []),
+    {
+      icon: <DoorOpen size={20} />,
+      label: "Leave table",
+      sub: "Release your seat and exit to home",
+      onClick: leaveTable,
+      danger: true,
+    },
   ];
 
   return (
-    <div className="h-screen-dyn flex flex-col overflow-hidden bg-[#201e1f] lg:flex-row">
+    <div
+      className="h-screen-dyn flex flex-col overflow-hidden lg:flex-row"
+      style={{
+        // Designed ambient depth (KR1): a soft green-tinted glow sits behind the
+        // table and falls off to a deep warm charcoal at the edges — the room
+        // reads as a lit poker table in a dark space, not a flat dark page.
+        background:
+          "radial-gradient(125% 75% at 50% 16%, #243a30 0%, #1b1c1b 46%, #131312 100%)",
+      }}
+    >
       {myTurn && policy.showFloatingActions && (
         <div className="safe-t safe-x fixed inset-x-0 top-0 z-[60] flex justify-center">
           <div className="w-full max-w-3xl rounded-b-xl bg-slate-950/95 px-3 pb-2 pt-3 shadow-2xl ring-1 ring-white/10 backdrop-blur">
@@ -336,37 +359,34 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* header */}
         <header className="safe-t safe-x flex shrink-0 items-center justify-between gap-2 border-b border-white/10 py-2">
+          {/* Left: connection status · room name · code (tap to copy invite link) */}
           <div className="flex min-w-0 items-center gap-2">
+            <span
+              title={connected ? "Connected" : "Reconnecting…"}
+              aria-label={connected ? "Connected" : "Reconnecting"}
+              className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
+                connected
+                  ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.85)]"
+                  : "animate-pulse bg-amber-400"
+              }`}
+            />
             <span className="truncate font-bold text-white">{state.config.roomName}</span>
-            <button
-              onClick={copyCode}
-              title="Copy room code"
-              aria-label="Copy room code"
-              className="touch-target shrink-0 rounded-md bg-white/10 px-2 py-1 font-mono text-xs tracking-widest text-emerald-300 hover:bg-white/20 sm:text-sm"
-            >
-              {copiedCode ? "Copied!" : roomId.toUpperCase()}
-            </button>
             <button
               onClick={copyLink}
               title="Copy invite link"
               aria-label="Copy invite link"
-              className="touch-target inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+              className="touch-target inline-flex shrink-0 items-center gap-1.5 rounded-md bg-white/10 px-2 py-1 font-mono text-xs font-semibold tracking-widest text-emerald-300 hover:bg-white/20 sm:text-sm"
             >
-              {copied ? <Check size={15} /> : <Copy size={15} />}
-              <span className="hidden sm:inline">{copied ? "Link copied!" : "Copy invite link"}</span>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "Copied!" : roomId.toUpperCase()}
             </button>
+            {state.handNumber > 0 && (
+              <span className="hidden shrink-0 text-xs text-white/40 md:inline">Hand #{state.handNumber}</span>
+            )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 text-xs text-white/50">
-            {state.handNumber > 0 && <span className="hidden md:inline">Hand #{state.handNumber}</span>}
-            <span
-              className={`inline-flex items-center gap-1 ${connected ? "text-emerald-400" : "text-amber-400"}`}
-              title={connected ? "Connected" : "Reconnecting…"}
-            >
-              <span className="text-[10px]">{connected ? "●" : "○"}</span>
-              <span className="hidden sm:inline">{connected ? "live" : "reconnecting"}</span>
-            </span>
-
+          {/* Right: chat + overflow on mobile; full inline control rail on desktop */}
+          <div className="flex shrink-0 items-center gap-1 text-white/50">
             <span className="relative">
               <IconBtn
                 onClick={() => setOpenOverlay((overlay) => (overlay?.type === "chat" ? null : { type: "chat" }))}
@@ -376,16 +396,15 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
                 <MessageSquare size={18} />
               </IconBtn>
               {!chatOpen && chatCount > seenChat && (
-                <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[#201e1f]" />
+                <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[#141312]" />
               )}
             </span>
 
-            <IconBtn onClick={() => setOpenOverlay({ type: "help" })} label="How to play">
-              <HelpCircle size={18} />
-            </IconBtn>
-
             {/* desktop inline controls */}
             <div className="hidden items-center gap-0.5 lg:flex">
+              <IconBtn onClick={() => setOpenOverlay({ type: "help" })} label="How to play">
+                <HelpCircle size={18} />
+              </IconBtn>
               <IconBtn onClick={toggleMute} label={muted ? "Unmute" : "Mute"} active={!muted}>
                 {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
               </IconBtn>
@@ -418,6 +437,28 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
                   <Settings size={18} />
                 </IconBtn>
               )}
+
+              {/* Seat management — desktop has no "More" sheet, so Sit out /
+                  Stand up / Leave live in the inline rail here. */}
+              {(canToggleSitOut || me) && <span className="mx-1 h-5 w-px bg-white/10" />}
+              {canToggleSitOut && (
+                <IconBtn onClick={toggleSitOut} label={sitOutLabel} active={me?.sittingOut}>
+                  {me?.sittingOut ? <CirclePlay size={18} /> : <CirclePause size={18} />}
+                </IconBtn>
+              )}
+              {me && (
+                <IconBtn onClick={() => send({ type: "stand" })} label="Stand up (keep watching)">
+                  <LogOut size={18} />
+                </IconBtn>
+              )}
+              <button
+                onClick={leaveTable}
+                title="Leave table"
+                aria-label="Leave table"
+                className="touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-md p-2 text-rose-300/80 hover:bg-rose-500/15 hover:text-rose-200"
+              >
+                <DoorOpen size={18} />
+              </button>
             </div>
 
             {/* mobile overflow */}
@@ -441,39 +482,6 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
               localStream={rtc.localStream}
               remote={rtc.remote}
             />
-          </div>
-
-          <div className="pointer-events-none absolute left-2 top-2 z-20 flex flex-col gap-1.5">
-            {me && (
-              <>
-                {canToggleSitOut && (
-                  <button
-                    onClick={toggleSitOut}
-                    className={`touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition active:scale-[.97] ${
-                      me.sittingOut
-                        ? sitOutQueued
-                          ? "bg-amber-700/85 text-amber-50 ring-amber-300/20 hover:bg-amber-600"
-                          : "bg-emerald-800/85 text-emerald-50 ring-emerald-300/20 hover:bg-emerald-700"
-                        : "bg-slate-900/80 text-white/90 ring-white/10 hover:bg-slate-800"
-                    }`}
-                  >
-                    {me.sittingOut ? <CirclePlay size={15} /> : <CirclePause size={15} />} {sitOutLabel}
-                  </button>
-                )}
-                <button
-                  onClick={() => send({ type: "stand" })}
-                  className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
-                >
-                  <LogOut size={15} /> Stand up
-                </button>
-              </>
-            )}
-            <button
-              onClick={leaveTable}
-              className="touch-target pointer-events-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg ring-1 ring-white/10 backdrop-blur transition hover:bg-slate-800 active:scale-[.97]"
-            >
-              <DoorOpen size={15} /> Leave table
-            </button>
           </div>
 
           {state.seatedCount <= 1 && !state.handInProgress && !state.tourney?.active && !inviteDismissed && (
@@ -606,7 +614,7 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
         <div className="fixed inset-0 z-50 xl:hidden" onClick={() => setOpenOverlay(null)}>
           <div className="absolute inset-0 bg-black/50" />
           <div
-            className="safe-t absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col bg-[#201e1f] p-2 shadow-2xl"
+            className="safe-t absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col bg-[#16181a] p-2 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-1 flex items-center justify-between px-1">

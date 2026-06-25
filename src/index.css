@@ -14,7 +14,7 @@ body,
 
 body {
   margin: 0;
-  background: #201e1f;
+  background: #131312;
   color: #e7e9ee;
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -49,8 +49,10 @@ body {
 
 /* Reserve the full betting-bar height even when the player is only waiting.
    The felt/table fit stays stable as turns pass instead of zooming in and out
-   when the larger betting controls appear. */
-.dock-body {
+   when the larger betting controls appear. The reserve is applied only once a
+   game is live (`.reserve`); in the pre-game lobby the dock collapses to its
+   natural height so the felt fills the screen with no dead band (KR8). */
+.dock-body.reserve {
   min-height: 11.5rem;
 }
 .bet-preset {
@@ -68,7 +70,7 @@ body {
      grows only on the acting player's turn, so the felt re-fit smaller during
      betting and larger while waiting/joining. Reserve the taller bar here too so
      the felt is sized to the betting stage in every stage and never shifts. */
-  .dock-body {
+  .dock-body.reserve {
     min-height: 12rem;
   }
 }
@@ -91,7 +93,7 @@ body {
     height: 2rem;
     min-height: 2rem;
   }
-  .dock-body {
+  .dock-body.reserve {
     min-height: 8.25rem;
   }
 }
@@ -159,6 +161,19 @@ body {
   .touch-target {
     min-height: 44px;
     min-width: 44px;
+  }
+}
+
+/* iOS Safari auto-zooms when a text field with a font smaller than 16px gains
+   focus. We already lock the viewport scale in the meta tag, but as a belt-and-
+   suspenders defense (and so Android/desktop stay crisp) every text-entry field
+   renders at >=16px on touch devices — no field tap ever triggers a zoom (KR3).
+   Range/checkbox inputs are excluded; they don't zoom and have custom sizing. */
+@media (pointer: coarse), (max-width: 1280px) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
   }
 }
 

@@ -111,18 +111,18 @@ export function SidePanel({ state, send }: { state: PublicTableState; send: (m: 
               </button>
             ))}
           </div>
-          <div className="flex gap-1 p-2">
+          <div className="flex gap-1.5 p-2">
             <input
               ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendChat()}
               placeholder="Say something…"
-              className="flex-1 rounded-md bg-slate-800 px-2 py-1 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-emerald-400"
+              className="touch-target min-h-[44px] flex-1 rounded-lg bg-slate-800 px-3 text-white outline-none ring-1 ring-white/10 focus:ring-emerald-400"
             />
             <button
               onClick={sendChat}
-              className="rounded-md bg-emerald-700 px-3 py-1 text-sm font-semibold text-white hover:bg-emerald-600"
+              className="touch-target min-h-[44px] rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-600 active:scale-[.97]"
             >
               Send
             </button>

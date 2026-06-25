@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#201e1f] p-6 text-center text-white">
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#131312] p-6 text-center text-white">
           <div className="text-3xl">♠️</div>
           <h1 className="font-display text-xl font-bold">Something hiccuped at the table</h1>
           <p className="max-w-sm text-sm text-white/60">

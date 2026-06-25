@@ -35,13 +35,15 @@ export function PlayingCard({
   if (faceDown || !card) {
     return (
       <div
-        className={`${s.w} ${s.h} rounded-md border border-black/30 shadow-sm shrink-0 bg-gradient-to-br from-rose-700 to-rose-900`}
+        className={`${s.w} ${s.h} rounded-md border border-white/25 shadow-sm shrink-0 ring-1 ring-black/40`}
         style={{
-          backgroundImage:
-            "repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 4px, transparent 4px 8px)",
+          background:
+            "repeating-linear-gradient(45deg, #9a2740 0 5px, #7c1d33 5px 10px)",
         }}
         aria-label="face-down card"
-      />
+      >
+        <div className="m-[2px] h-[calc(100%-4px)] rounded-[3px] border border-white/20" />
+      </div>
     );
   }
   const color = fourColor
