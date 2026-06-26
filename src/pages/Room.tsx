@@ -32,6 +32,7 @@ import {
   Palette,
   ScrollText,
   Settings,
+  Timer,
   Video,
   VideoOff,
   Volume2,
@@ -485,25 +486,44 @@ function RoomInner({ roomId, name }: { roomId: string; name: string }) {
           </div>
 
           {state.seatedCount <= 1 && !state.handInProgress && !state.tourney?.active && !inviteDismissed && (
-            <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex w-[min(86%,22rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-black/65 px-5 py-4 text-center shadow-xl ring-1 ring-white/10 backdrop-blur">
-              <button
-                onClick={() => setInviteDismissed(true)}
-                aria-label="Dismiss"
-                className="pointer-events-auto absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white active:scale-[.95]"
-              >
-                <X size={16} />
-              </button>
-              <p className="text-base font-bold text-white">Invite friends to start</p>
-              <p className="text-sm text-white/70">
-                Share the link or the code <span className="font-mono tracking-widest text-emerald-300">{roomId.toUpperCase()}</span> — they pick a name and sit down.
-              </p>
-              <button
-                onClick={copyLink}
-                className="pointer-events-auto mt-1 inline-flex items-center gap-1.5 rounded-full bg-[#f2b138] px-4 py-2 text-sm font-bold text-[#1a1207] shadow hover:bg-[#ffc24d] active:scale-[.98]"
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Link copied!" : "Copy invite link"}
-              </button>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[min(88%,20rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-2xl">
+              {/* header */}
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Timer size={15} className="text-gray-500" />
+                  Waiting for others
+                </div>
+                <button
+                  onClick={() => setInviteDismissed(true)}
+                  aria-label="Dismiss"
+                  className="pointer-events-auto -mr-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 active:scale-[.95]"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+              {/* body */}
+              <div className="flex flex-col gap-3 px-4 py-4 text-center">
+                <p className="text-sm text-gray-700">
+                  Share this link with your{" "}
+                  <span className="font-bold">friends!</span>
+                </p>
+                <button
+                  onClick={copyLink}
+                  className="pointer-events-auto flex w-full items-center justify-center gap-2 rounded-lg bg-[#3ab453] py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm hover:bg-[#2fa046] active:scale-[.98]"
+                >
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? "Link copied!" : "Copy link"}
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs font-semibold text-gray-400">OR</span>
+                  <span className="h-px flex-1 bg-gray-200" />
+                </div>
+                <p className="text-sm text-gray-700">
+                  Share the code{" "}
+                  <span className="font-mono font-bold tracking-widest text-emerald-600">{roomId.toUpperCase()}</span>
+                </p>
+              </div>
             </div>
           )}
 
